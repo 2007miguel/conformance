@@ -17,7 +17,9 @@
 from absl.testing import absltest
 import integration_test_utils
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
 from ucp_sdk.models.schemas.shopping.types import card_credential
 from ucp_sdk.models.schemas.shopping.types import card_payment_instrument
 
@@ -44,40 +46,40 @@ class CardCredentialTest(integration_test_utils.IntegrationTestBase):
     checkout_id = checkout.Checkout(**response_json).id
 
     credential = card_credential.CardCredential(
-        type="card",
-        card_number_type="fpan",
-        number="4242424242424242",
-        expiry_month=12,
-        expiry_year=2030,
-        cvc="123",
-        name="John Doe",
+      type="card",
+      card_number_type="fpan",
+      number="4242424242424242",
+      expiry_month=12,
+      expiry_year=2030,
+      cvc="123",
+      name="John Doe",
     )
     instr = card_payment_instrument.CardPaymentInstrument(
-        id="instr_card",
-        handler_id="mock_payment_handler",
-        handler_name="mock_payment_handler",
-        type="card",
-        brand="Visa",
-        last_digits="1111",
-        credential=credential,
+      id="instr_card",
+      handler_id="mock_payment_handler",
+      handler_name="mock_payment_handler",
+      type="card",
+      brand="Visa",
+      last_digits="1111",
+      credential=credential,
     )
     payment_data = instr.model_dump(mode="json", exclude_none=True)
     payment_payload = {
-        "payment_data": payment_data,
-        "risk_signals": {},
+      "payment_data": payment_data,
+      "risk_signals": {},
     }
 
     response = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=payment_payload,
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=payment_payload,
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 200)
     self.assertEqual(
-        response.json().get("status"),
-        "completed",
-        msg="Checkout status not 'completed'",
+      response.json().get("status"),
+      "completed",
+      msg="Checkout status not 'completed'",
     )
 
 

@@ -19,7 +19,9 @@ import integration_test_utils
 from ucp_sdk.models.schemas.shopping import checkout_update_req
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
 from ucp_sdk.models.schemas.shopping import payment_update_req
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
 from ucp_sdk.models.schemas.shopping.types import item_update_req
 from ucp_sdk.models.schemas.shopping.types import line_item_update_req
 
@@ -47,28 +49,28 @@ class ValidationTest(integration_test_utils.IntegrationTestBase):
     """
     # Get out of stock item from config
     out_of_stock_item = self.conformance_config.get(
-        "out_of_stock_item",
-        {"id": "out_of_stock_item_1", "title": "Out of Stock Item"},
+      "out_of_stock_item",
+      {"id": "out_of_stock_item_1", "title": "Out of Stock Item"},
     )
 
     create_payload = self.create_checkout_payload(
-        item_id=out_of_stock_item["id"],
-        title=out_of_stock_item["title"],
+      item_id=out_of_stock_item["id"],
+      title=out_of_stock_item["title"],
     )
 
     response = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=integration_test_utils.get_headers(),
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 400)
     self.assertIn(
-        "Insufficient stock",
-        response.text,
-        msg="Expected 'Insufficient stock' message",
+      "Insufficient stock",
+      response.text,
+      msg="Expected 'Insufficient stock' message",
     )
 
   def test_update_inventory_validation(self) -> None:
@@ -85,41 +87,41 @@ class ValidationTest(integration_test_utils.IntegrationTestBase):
 
     # Update to excessive quantity (e.g. 10000)
     item_update = item_update_req.ItemUpdateRequest(
-        id=checkout_obj.line_items[0].item.id,
-        title=checkout_obj.line_items[0].item.title,
+      id=checkout_obj.line_items[0].item.id,
+      title=checkout_obj.line_items[0].item.title,
     )
     line_item_update = line_item_update_req.LineItemUpdateRequest(
-        id=checkout_obj.line_items[0].id,
-        item=item_update,
-        quantity=10001,
+      id=checkout_obj.line_items[0].id,
+      item=item_update,
+      quantity=10001,
     )
     payment_update = payment_update_req.PaymentUpdateRequest(
-        selected_instrument_id=checkout_obj.payment.selected_instrument_id,
-        instruments=checkout_obj.payment.instruments,
-        handlers=[
-            h.model_dump(mode="json", exclude_none=True)
-            for h in checkout_obj.payment.handlers
-        ],
+      selected_instrument_id=checkout_obj.payment.selected_instrument_id,
+      instruments=checkout_obj.payment.instruments,
+      handlers=[
+        h.model_dump(mode="json", exclude_none=True)
+        for h in checkout_obj.payment.handlers
+      ],
     )
 
     update_payload = checkout_update_req.CheckoutUpdateRequest(
-        id=checkout_id,
-        currency=checkout_obj.currency,
-        line_items=[line_item_update],
-        payment=payment_update,
+      id=checkout_id,
+      currency=checkout_obj.currency,
+      line_items=[line_item_update],
+      payment=payment_update,
     )
 
     response = self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 400)
     self.assertIn(
-        "stock", response.text.lower(), msg="Expected 'stock' message"
+      "stock", response.text.lower(), msg="Expected 'stock' message"
     )
 
   def test_product_not_found(self) -> None:
@@ -131,26 +133,26 @@ class ValidationTest(integration_test_utils.IntegrationTestBase):
     was not found.
     """
     non_existent_item = self.conformance_config.get(
-        "non_existent_item",
-        {"id": "non_existent_item_1", "title": "Non-existent Item"},
+      "non_existent_item",
+      {"id": "non_existent_item_1", "title": "Non-existent Item"},
     )
 
     create_payload = self.create_checkout_payload(
-        item_id=non_existent_item["id"],
-        title=non_existent_item["title"],
+      item_id=non_existent_item["id"],
+      title=non_existent_item["title"],
     )
 
     response = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=integration_test_utils.get_headers(),
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 400)
     self.assertIn(
-        "not found", response.text.lower(), msg="Expected 'not found' message"
+      "not found", response.text.lower(), msg="Expected 'not found' message"
     )
 
   def test_payment_failure(self) -> None:
@@ -167,13 +169,13 @@ class ValidationTest(integration_test_utils.IntegrationTestBase):
     # Use the helper to get valid structure, but request the failing instrument
     # 'instr_fail' is loaded from payment_instruments.csv
     payment_payload = integration_test_utils.get_valid_payment_payload(
-        instrument_id="instr_fail"
+      instrument_id="instr_fail"
     )
 
     response = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=payment_payload,
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=payment_payload,
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 402)
@@ -191,16 +193,16 @@ class ValidationTest(integration_test_utils.IntegrationTestBase):
     payment_payload = integration_test_utils.get_valid_payment_payload()
 
     response = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=payment_payload,
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=payment_payload,
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 400)
     self.assertIn(
-        "Fulfillment address and option must be selected",
-        response.text,
-        msg="Expected error message for missing fulfillment",
+      "Fulfillment address and option must be selected",
+      response.text,
+      msg="Expected error message for missing fulfillment",
     )
 
   def test_structured_error_messages(self) -> None:
@@ -213,20 +215,20 @@ class ValidationTest(integration_test_utils.IntegrationTestBase):
     """
     # Get out of stock item from config
     out_of_stock_item = self.conformance_config.get(
-        "out_of_stock_item",
-        {"id": "out_of_stock_item_1", "title": "Out of Stock Item"},
+      "out_of_stock_item",
+      {"id": "out_of_stock_item_1", "title": "Out of Stock Item"},
     )
 
     create_payload = self.create_checkout_payload(
-        item_id=out_of_stock_item["id"],
+      item_id=out_of_stock_item["id"],
     )
 
     response = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=integration_test_utils.get_headers(),
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 400)

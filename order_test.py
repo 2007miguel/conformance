@@ -22,7 +22,9 @@ import integration_test_utils
 from pydantic import AnyUrl
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
 from ucp_sdk.models.schemas.shopping import order
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
 from ucp_sdk.models.schemas.shopping.types import adjustment
 from ucp_sdk.models.schemas.shopping.types import fulfillment_event
 
@@ -55,14 +57,14 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
 
     # Get Order
     response = self.client.get(
-        f"/orders/{order_id}", headers=self.get_headers()
+      f"/orders/{order_id}", headers=self.get_headers()
     )
     self.assert_response_status(response, 200)
 
     order_data = order.Order(**response.json())
     self.assertEqual(order_data.id, order_id, "Order ID mismatch")
     self.assertEqual(
-        order_data.checkout_id, checkout_id, "Checkout ID mismatch"
+      order_data.checkout_id, checkout_id, "Checkout ID mismatch"
     )
 
   def test_order_fulfillment_retrieval(self) -> None:
@@ -81,42 +83,44 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
     # Use helper to get a valid address from CSV
     address_data = integration_test_utils.test_data.addresses[0]
     fulfillment_address = {
-        "id": "dest_manual",
-        "full_name": "Jane Doe",
-        "street_address": address_data["street_address"],
-        "address_locality": address_data["city"],
-        "address_region": address_data["state"],
-        "postal_code": address_data["postal_code"],
-        "address_country": address_data["country"],
+      "id": "dest_manual",
+      "full_name": "Jane Doe",
+      "street_address": address_data["street_address"],
+      "address_locality": address_data["city"],
+      "address_region": address_data["state"],
+      "postal_code": address_data["postal_code"],
+      "address_country": address_data["country"],
     }
 
     fulfillment_payload = {
-        "methods": [{
-            "type": "shipping",
-            "destinations": [fulfillment_address],
-            "selected_destination_id": "dest_manual",
-        }]
+      "methods": [
+        {
+          "type": "shipping",
+          "destinations": [fulfillment_address],
+          "selected_destination_id": "dest_manual",
+        }
+      ]
     }
 
     update_payload = {
-        "id": checkout_id,
-        "currency": checkout_obj.currency,
-        "line_items": [
-            {
-                "item": {"id": li.item.id, "title": li.item.title},
-                "quantity": li.quantity,
-                "id": li.id,
-            }
-            for li in checkout_obj.line_items
-        ],
-        "payment": integration_test_utils.get_valid_payment_payload(),
-        "fulfillment": fulfillment_payload,
+      "id": checkout_id,
+      "currency": checkout_obj.currency,
+      "line_items": [
+        {
+          "item": {"id": li.item.id, "title": li.item.title},
+          "quantity": li.quantity,
+          "id": li.id,
+        }
+        for li in checkout_obj.line_items
+      ],
+      "payment": integration_test_utils.get_valid_payment_payload(),
+      "fulfillment": fulfillment_payload,
     }
 
     response = self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_payload,
-        headers=self.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_payload,
+      headers=self.get_headers(),
     )
     self.assert_response_status(response, 200)
 
@@ -125,12 +129,12 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
     # Check options in hierarchical structure
     options = []
     if (
-        checkout_with_options.fulfillment
-        and checkout_with_options.fulfillment.root.methods
-        and checkout_with_options.fulfillment.root.methods[0].groups
+      checkout_with_options.fulfillment
+      and checkout_with_options.fulfillment.root.methods
+      and checkout_with_options.fulfillment.root.methods[0].groups
     ):
       options = (
-          checkout_with_options.fulfillment.root.methods[0].groups[0].options
+        checkout_with_options.fulfillment.root.methods[0].groups[0].options
       )
 
     self.assertTrue(options, "No options returned")
@@ -141,13 +145,13 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
     # Update payload to select option
     # Need to preserve the method structure
     update_payload["fulfillment"]["methods"][0]["groups"] = [
-        {"selected_option_id": option_id}
+      {"selected_option_id": option_id}
     ]
 
     response = self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_payload,
-        headers=self.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_payload,
+      headers=self.get_headers(),
     )
     self.assert_response_status(response, 200)
 
@@ -157,19 +161,19 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
 
     # Get Order and verify fulfillment details
     response = self.client.get(
-        f"/orders/{order_id}", headers=self.get_headers()
+      f"/orders/{order_id}", headers=self.get_headers()
     )
     self.assert_response_status(response, 200)
     order_obj = order.Order(**response.json())
 
     self.assertTrue(
-        order_obj.fulfillment.expectations, "No expectations in order"
+      order_obj.fulfillment.expectations, "No expectations in order"
     )
     # Verify the expectation description matches the selected option title
     self.assertEqual(
-        order_obj.fulfillment.expectations[0].description,
-        options[0].title,
-        "Expectation description mismatch",
+      order_obj.fulfillment.expectations[0].description,
+      options[0].title,
+      "Expectation description mismatch",
     )
 
   def test_order_update(self) -> None:
@@ -189,76 +193,78 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
     # Use helper to get a valid address from CSV
     address_data = integration_test_utils.test_data.addresses[0]
     addr = {
-        "id": "dest_manual_2",
-        "full_name": "Jane Doe",
-        "street_address": address_data["street_address"],
-        "address_locality": address_data["city"],
-        "address_region": address_data["state"],
-        "postal_code": address_data["postal_code"],
-        "address_country": address_data["country"],
+      "id": "dest_manual_2",
+      "full_name": "Jane Doe",
+      "street_address": address_data["street_address"],
+      "address_locality": address_data["city"],
+      "address_region": address_data["state"],
+      "postal_code": address_data["postal_code"],
+      "address_country": address_data["country"],
     }
 
     fulfillment_payload = {
-        "methods": [{
-            "type": "shipping",
-            "destinations": [addr],
-            "selected_destination_id": "dest_manual_2",
-        }]
+      "methods": [
+        {
+          "type": "shipping",
+          "destinations": [addr],
+          "selected_destination_id": "dest_manual_2",
+        }
+      ]
     }
 
     update_payload = {
-        "id": checkout_id,
-        "currency": checkout_obj.currency,
-        "line_items": [
-            {
-                "item": {"id": li.item.id, "title": li.item.title},
-                "quantity": li.quantity,
-                "id": li.id,
-            }
-            for li in checkout_obj.line_items
-        ],
-        "payment": integration_test_utils.get_valid_payment_payload(),
-        "fulfillment": fulfillment_payload,
+      "id": checkout_id,
+      "currency": checkout_obj.currency,
+      "line_items": [
+        {
+          "item": {"id": li.item.id, "title": li.item.title},
+          "quantity": li.quantity,
+          "id": li.id,
+        }
+        for li in checkout_obj.line_items
+      ],
+      "payment": integration_test_utils.get_valid_payment_payload(),
+      "fulfillment": fulfillment_payload,
     }
 
     resp = self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_payload,
-        headers=self.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_payload,
+      headers=self.get_headers(),
     )
     self.assert_response_status(resp, 200)
 
     checkout_resp = resp.json()
     options = []
     if (
-        checkout_resp.get("fulfillment")
-        and checkout_resp["fulfillment"].get("root")  # RootModel serialized?
-        and checkout_resp["fulfillment"]["root"].get("methods")
-        and checkout_resp["fulfillment"]["root"]["methods"][0].get("groups")
+      checkout_resp.get("fulfillment")
+      and checkout_resp["fulfillment"].get("root")  # RootModel serialized?
+      and checkout_resp["fulfillment"]["root"].get("methods")
+      and checkout_resp["fulfillment"]["root"]["methods"][0].get("groups")
     ):
       options = checkout_resp["fulfillment"]["root"]["methods"][0]["groups"][0][
-          "options"
+        "options"
       ]
     elif (
-        checkout_resp.get("fulfillment")
-        and checkout_resp["fulfillment"].get("methods")
-        and checkout_resp["fulfillment"]["methods"][0].get("groups")
+      checkout_resp.get("fulfillment")
+      and checkout_resp["fulfillment"].get("methods")
+      and checkout_resp["fulfillment"]["methods"][0].get("groups")
     ):
       options = checkout_resp["fulfillment"]["methods"][0]["groups"][0][
-          "options"
+        "options"
       ]
 
     self.assertTrue(options)
 
     # Select option
     update_payload["fulfillment"]["methods"][0]["groups"] = [
-        {"selected_option_id": options[0]["id"]}
+      {"selected_option_id": options[0]["id"]}
     ]
 
     self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_payload,
-        headers=self.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_payload,
+      headers=self.get_headers(),
     )
 
     # Complete
@@ -272,16 +278,16 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
 
     # Update Order (Add Shipment Event)
     new_event = fulfillment_event.FulfillmentEvent(
-        id=f"evt_{uuid.uuid4()}",
-        occurred_at=datetime.datetime.now(datetime.timezone.utc),
-        type="shipped",
-        line_items=[
-            fulfillment_event.LineItem(id=li.id, quantity=li.quantity.total)
-            for li in order_obj.line_items
-        ],
-        tracking_number="TRACK123",
-        tracking_url=AnyUrl("http://track.me/123"),
-        description="Shipped via FedEx",
+      id=f"evt_{uuid.uuid4()}",
+      occurred_at=datetime.datetime.now(datetime.timezone.utc),
+      type="shipped",
+      line_items=[
+        fulfillment_event.LineItem(id=li.id, quantity=li.quantity.total)
+        for li in order_obj.line_items
+      ],
+      tracking_number="TRACK123",
+      tracking_url=AnyUrl("http://track.me/123"),
+      description="Shipped via FedEx",
     )
 
     if order_obj.fulfillment.events is None:
@@ -289,20 +295,18 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
     order_obj.fulfillment.events.append(new_event)
 
     resp = self.client.put(
-        f"/orders/{order_id}",
-        json=order_obj.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=self.get_headers(),
+      f"/orders/{order_id}",
+      json=order_obj.model_dump(mode="json", by_alias=True, exclude_none=True),
+      headers=self.get_headers(),
     )
     self.assert_response_status(resp, 200)
 
     updated_order = order.Order(**resp.json())
     self.assertTrue(updated_order.fulfillment.events, "No events returned")
     self.assertEqual(
-        updated_order.fulfillment.events[0].tracking_number,
-        "TRACK123",
-        msg="Order event not persisted",
+      updated_order.fulfillment.events[0].tracking_number,
+      "TRACK123",
+      msg="Order event not persisted",
     )
 
   def test_order_adjustments(self) -> None:
@@ -321,12 +325,12 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
 
     # Add Adjustment
     adj = adjustment.Adjustment(
-        id=f"adj_{uuid.uuid4()}",
-        type="refund",
-        occurred_at=datetime.datetime.now(datetime.timezone.utc),
-        status="pending",
-        amount=500,
-        description="Customer refund request",
+      id=f"adj_{uuid.uuid4()}",
+      type="refund",
+      occurred_at=datetime.datetime.now(datetime.timezone.utc),
+      status="pending",
+      amount=500,
+      description="Customer refund request",
     )
 
     if order_obj.adjustments is None:
@@ -335,11 +339,9 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
 
     # Update Order
     resp = self.client.put(
-        f"/orders/{order_id}",
-        json=order_obj.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=self.get_headers(),
+      f"/orders/{order_id}",
+      json=order_obj.model_dump(mode="json", by_alias=True, exclude_none=True),
+      headers=self.get_headers(),
     )
     self.assert_response_status(resp, 200)
 

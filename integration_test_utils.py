@@ -17,10 +17,10 @@
 import csv
 import json
 import logging
-import os
+from pathlib import Path
 import threading
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 import uuid
 
 from absl import flags
@@ -33,9 +33,13 @@ from ucp_sdk.models.schemas.shopping import checkout_create_req
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as f_models
 from ucp_sdk.models.schemas.shopping import payment_create_req
 from ucp_sdk.models.schemas.shopping import payment_update_req
-from ucp_sdk.models.schemas.shopping.discount_update_req import Checkout as DiscountUpdate
+from ucp_sdk.models.schemas.shopping.discount_update_req import (
+  Checkout as DiscountUpdate,
+)
 from ucp_sdk.models.schemas.shopping.fulfillment_create_req import Fulfillment
-from ucp_sdk.models.schemas.shopping.fulfillment_update_req import Checkout as FulfillmentUpdate
+from ucp_sdk.models.schemas.shopping.fulfillment_update_req import (
+  Checkout as FulfillmentUpdate,
+)
 from ucp_sdk.models.schemas.shopping.types import card_payment_instrument
 from ucp_sdk.models.schemas.shopping.types import fulfillment_destination_req
 from ucp_sdk.models.schemas.shopping.types import fulfillment_group_create_req
@@ -58,26 +62,26 @@ FLAGS = flags.FLAGS
 try:
   flags.DEFINE_string("server_url", None, "Base URL of the server")
   flags.DEFINE_string(
-      "simulation_secret",
-      str(uuid.uuid4()),
-      "Secret for simulation endpoints",
+    "simulation_secret",
+    str(uuid.uuid4()),
+    "Secret for simulation endpoints",
   )
   flags.DEFINE_integer(
-      "mock_webhook_port", 8284, "Port for the mock webhook server"
+    "mock_webhook_port", 8284, "Port for the mock webhook server"
   )
   flags.DEFINE_integer(
-      "mock_agent_port", 8285, "Port for the mock agent profile server"
+    "mock_agent_port", 8285, "Port for the mock agent profile server"
   )
   flags.DEFINE_bool("verbose_http", False, "Whether to log HTTP requests.")
   flags.DEFINE_string(
-      "conformance_input",
-      "test_data/flower_shop/conformance_input.json",
-      "Path to conformance input configuration JSON.",
+    "conformance_input",
+    "test_data/flower_shop/conformance_input.json",
+    "Path to conformance input configuration JSON.",
   )
   flags.DEFINE_string(
-      "test_data_dir",
-      "test_data/flower_shop",
-      "Directory containing test CSV data.",
+    "test_data_dir",
+    "test_data/flower_shop",
+    "Directory containing test CSV data.",
   )
 except flags.DuplicateFlagError:
   pass
@@ -87,19 +91,20 @@ class TestData:
   """Holder for loaded test data."""
 
   def __init__(self) -> None:
-    self.payment_instruments: List[Dict[str, Any]] = []
-    self.addresses: List[Dict[str, Any]] = []
+    """Initialize TestData."""
+    self.payment_instruments: list[dict[str, Any]] = []
+    self.addresses: list[dict[str, Any]] = []
 
   def load(self, data_dir: str) -> None:
-    """Loads data from CSV files in the given directory."""
-    pi_path = os.path.join(data_dir, "payment_instruments.csv")
-    if os.path.exists(pi_path):
-      with open(pi_path, "r") as f:
+    """Load data from CSV files in the given directory."""
+    pi_path = Path(data_dir) / "payment_instruments.csv"
+    if pi_path.exists():
+      with pi_path.open() as f:
         self.payment_instruments = list(csv.DictReader(f))
 
-    addr_path = os.path.join(data_dir, "addresses.csv")
-    if os.path.exists(addr_path):
-      with open(addr_path, "r") as f:
+    addr_path = Path(data_dir) / "addresses.csv"
+    if addr_path.exists():
+      with addr_path.open() as f:
         self.addresses = list(csv.DictReader(f))
 
 
@@ -108,9 +113,9 @@ test_data = TestData()
 
 
 def get_headers(
-    idempotency_key: str | None = None, request_id: str | None = None
-) -> Dict[str, str]:
-  """Generates headers for UCP requests.
+  idempotency_key: str | None = None, request_id: str | None = None
+) -> dict[str, str]:
+  """Generate headers for UCP requests.
 
   Args:
       idempotency_key: Optional specific idempotency key.
@@ -118,73 +123,76 @@ def get_headers(
 
   Returns:
       A dictionary of HTTP headers including UCP-Agent, signature, and keys.
+
   """
-  profile_url = f"http://localhost:{FLAGS.mock_agent_port}{AgentProfileServer.PROFILE_PATH}"
+  profile_url = (
+    f"http://localhost:{FLAGS.mock_agent_port}{AgentProfileServer.PROFILE_PATH}"
+  )
   return {
-      "UCP-Agent": f'profile="{profile_url}"',
-      "request-signature": "test",
-      "idempotency-key": idempotency_key or str(uuid.uuid4()),
-      "request-id": request_id or str(uuid.uuid4()),
+    "UCP-Agent": f'profile="{profile_url}"',
+    "request-signature": "test",
+    "idempotency-key": idempotency_key or str(uuid.uuid4()),
+    "request-id": request_id or str(uuid.uuid4()),
   }
 
 
 def get_valid_payment_payload(
-    instrument_id: str = "instr_1", address_id: str = "addr_1"
-) -> Dict[str, Any]:
-  """Returns a valid payment payload using loaded test data."""
+  instrument_id: str = "instr_1", address_id: str = "addr_1"
+) -> dict[str, Any]:
+  """Return a valid payment payload using loaded test data."""
   # Find instrument
   instr_data = next(
-      (pi for pi in test_data.payment_instruments if pi["id"] == instrument_id),
-      None,
+    (pi for pi in test_data.payment_instruments if pi["id"] == instrument_id),
+    None,
   )
   if not instr_data:
     # Fallback to hardcoded if not loaded (e.g. unit tests without files)
     instr_data = {
-        "id": "instr_1",
-        "type": "card",
-        "brand": "Visa",
-        "last_digits": "1234",
-        "token": "success_token",
-        "handler_id": "mock_payment_handler",
+      "id": "instr_1",
+      "type": "card",
+      "brand": "Visa",
+      "last_digits": "1234",
+      "token": "success_token",
+      "handler_id": "mock_payment_handler",
     }
 
   # Find address
   addr_data = next(
-      (a for a in test_data.addresses if a["id"] == address_id), None
+    (a for a in test_data.addresses if a["id"] == address_id), None
   )
   if not addr_data:
     addr_data = {
-        "street_address": "123 Main St",
-        "city": "Anytown",
-        "state": "CA",
-        "postal_code": "12345",
-        "country": "US",
+      "street_address": "123 Main St",
+      "city": "Anytown",
+      "state": "CA",
+      "postal_code": "12345",
+      "country": "US",
     }
 
   # Construct Billing Address
   billing_address = {
-      "street_address": addr_data.get("street_address"),
-      "address_locality": addr_data.get("city"),
-      "address_region": addr_data.get("state"),
-      "address_country": addr_data.get("country"),
-      "postal_code": addr_data.get("postal_code"),
+    "street_address": addr_data.get("street_address"),
+    "address_locality": addr_data.get("city"),
+    "address_region": addr_data.get("state"),
+    "address_country": addr_data.get("country"),
+    "postal_code": addr_data.get("postal_code"),
   }
 
   # Use Pydantic model to validate/construct
   instr_model = card_payment_instrument.CardPaymentInstrument(
-      id=instr_data["id"],
-      handler_id=instr_data["handler_id"],
-      handler_name=instr_data["handler_id"],  # Assuming same for mock
-      type=instr_data["type"],
-      brand=instr_data["brand"],
-      last_digits=instr_data["last_digits"],
-      credential={"type": "token", "token": instr_data["token"]},
-      billing_address=billing_address,
+    id=instr_data["id"],
+    handler_id=instr_data["handler_id"],
+    handler_name=instr_data["handler_id"],  # Assuming same for mock
+    type=instr_data["type"],
+    brand=instr_data["brand"],
+    last_digits=instr_data["last_digits"],
+    credential={"type": "token", "token": instr_data["token"]},
+    billing_address=billing_address,
   )
 
   return {
-      "payment_data": instr_model.model_dump(mode="json", exclude_none=True),
-      "risk_signals": {},
+    "payment_data": instr_model.model_dump(mode="json", exclude_none=True),
+    "risk_signals": {},
   }
 
 
@@ -194,20 +202,21 @@ class AgentProfileServer:
   PROFILE_PATH = "/profiles/shopping-agent.json"
 
   def __init__(self, *, port: int, webhook_port: int):
-    """Initializes the AgentProfileServer.
+    """Initialize the AgentProfileServer.
 
     Args:
       port: The port to listen on.
       webhook_port: The port where the webhook server is listening.
+
     """
     self.port = port
     self.webhook_port = webhook_port
     self.app = FastAPI()
 
     # Resolve and pre-read the profile template to avoid repeated file I/O
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    self.profile_path = os.path.join(current_dir, "shopping-agent-test.json")
-    with open(self.profile_path, "r") as f:
+    current_dir = Path(__file__).resolve().parent
+    self.profile_path = current_dir / "shopping-agent-test.json"
+    with self.profile_path.open() as f:
       self._profile_template = f.read()
 
     self._setup_routes()
@@ -215,27 +224,27 @@ class AgentProfileServer:
     self._thread: threading.Thread | None
 
   def _setup_routes(self) -> None:
-    """Sets up the routes for the mock agent server."""
+    """Set up the routes for the mock agent server."""
 
     @self.app.get(self.PROFILE_PATH, response_model=None)
     async def get_profile() -> JSONResponse:
-      """Returns the agent profile with the correct webhook port injected."""
+      """Return the agent profile with the correct webhook port injected."""
       # Dynamically inject the correct webhook port into the cached template
       content = self._profile_template.replace(
-          "{webhook_port}", str(self.webhook_port)
+        "{webhook_port}", str(self.webhook_port)
       )
       content_dict = json.loads(content)
       return JSONResponse(content=content_dict)
 
     @self.app.get("/healthz")
-    async def health_check() -> Dict[str, str]:
-      """Returns a simple health check response."""
+    async def health_check() -> dict[str, str]:
+      """Return a simple health check response."""
       return {"status": "ok"}
 
   def start(self) -> None:
-    """Starts the mock server in a background thread."""
+    """Start the mock server in a background thread."""
     config = uvicorn.Config(
-        self.app, host="0.0.0.0", port=self.port, log_level="error"
+      self.app, host="0.0.0.0", port=self.port, log_level="error"
     )
     self._server = uvicorn.Server(config)
     self._thread = threading.Thread(target=self._server.run, daemon=True)
@@ -245,8 +254,8 @@ class AgentProfileServer:
       try:
         with httpx.Client() as client:
           if (
-              client.get(f"http://localhost:{self.port}/healthz").status_code
-              == 200
+            client.get(f"http://localhost:{self.port}/healthz").status_code
+            == 200
           ):
             break
       except httpx.ConnectError:
@@ -255,7 +264,7 @@ class AgentProfileServer:
       raise RuntimeError(f"Server failed to start on port {self.port}")
 
   def stop(self) -> None:
-    """Stops the mock server."""
+    """Stop the mock server."""
     if self._server is not None:
       self._server.should_exit = True
       if self._thread is not None:
@@ -266,37 +275,38 @@ class MockWebhookServer:
   """A background mock webhook server that records incoming events."""
 
   def __init__(self, port: int):
-    """Initializes the MockWebhookServer.
+    """Initialize the MockWebhookServer.
 
     Args:
       port: The port to listen on.
+
     """
     self.port = port
     self.app = FastAPI()
-    self.events: List[Dict[str, Any]] = []
+    self.events: list[dict[str, Any]] = []
     self._setup_routes()
     self._server: uvicorn.Server | None
     self._thread: threading.Thread | None
 
   def _setup_routes(self) -> None:
-    """Sets up the routes for the mock server."""
+    """Set up the routes for the mock server."""
 
     @self.app.post("/webhooks/partners/{partner_id}/events/order")
-    async def order_event(partner_id: str, request: Request) -> Dict[str, str]:
-      """Records an incoming order event."""
+    async def order_event(partner_id: str, request: Request) -> dict[str, str]:
+      """Record an incoming order event."""
       payload = await request.json()
       self.events.append({"partner_id": partner_id, "payload": payload})
       return {"status": "ok"}
 
     @self.app.get("/healthz")
-    async def health_check() -> Dict[str, str]:
-      """Returns a simple health check response."""
+    async def health_check() -> dict[str, str]:
+      """Return a simple health check response."""
       return {"status": "ok"}
 
   def start(self) -> None:
-    """Starts the mock server in a background thread."""
+    """Start the mock server in a background thread."""
     config = uvicorn.Config(
-        self.app, host="0.0.0.0", port=self.port, log_level="error"
+      self.app, host="0.0.0.0", port=self.port, log_level="error"
     )
     self._server = uvicorn.Server(config)
     self._thread = threading.Thread(target=self._server.run, daemon=True)
@@ -306,8 +316,8 @@ class MockWebhookServer:
       try:
         with httpx.Client() as client:
           if (
-              client.get(f"http://localhost:{self.port}/healthz").status_code
-              == 200
+            client.get(f"http://localhost:{self.port}/healthz").status_code
+            == 200
           ):
             break
       except httpx.ConnectError:
@@ -316,14 +326,14 @@ class MockWebhookServer:
       raise RuntimeError(f"Server failed to start on port {self.port}")
 
   def stop(self) -> None:
-    """Stops the mock server."""
+    """Stop the mock server."""
     if self._server is not None:
       self._server.should_exit = True
       if self._thread is not None:
         self._thread.join(timeout=5)
 
   def clear_events(self) -> None:
-    """Clears all recorded events."""
+    """Clear all recorded events."""
     self.events = []
 
 
@@ -331,7 +341,7 @@ class IntegrationTestBase(absltest.TestCase):
   """Base class for UCP integration tests providing setup and helper methods."""
 
   def setUp(self) -> None:
-    """Sets up the test case, including clients and mock servers."""
+    """Set up the test case, including clients and mock servers."""
     super().setUp()
     self.base_url = FLAGS.server_url
     self.client = httpx.Client(base_url=self.base_url)
@@ -345,12 +355,12 @@ class IntegrationTestBase(absltest.TestCase):
 
     # Load conformance input configuration
     try:
-      with open(FLAGS.conformance_input, "r") as f:
+      with Path(FLAGS.conformance_input).open() as f:
         self.conformance_config = json.load(f)
     except FileNotFoundError:
       logging.warning(
-          "Conformance input file not found at %s. Using defaults.",
-          FLAGS.conformance_input,
+        "Conformance input file not found at %s. Using defaults.",
+        FLAGS.conformance_input,
       )
       self.conformance_config = {}
 
@@ -358,7 +368,7 @@ class IntegrationTestBase(absltest.TestCase):
     try:
       # Resolve relative to this file if not absolute
       data_dir = FLAGS.test_data_dir
-      if not os.path.isabs(data_dir):
+      if not Path(data_dir).is_absolute():
         # Assumption: run from where this file is reachable via relative path
         # Actually, FLAGS.test_data_dir is passed by run_conformance.sh
         # Let's try to resolve it.
@@ -369,28 +379,28 @@ class IntegrationTestBase(absltest.TestCase):
 
     # Start the agent profile server
     self.agent_server = AgentProfileServer(
-        port=FLAGS.mock_agent_port, webhook_port=FLAGS.mock_webhook_port
+      port=FLAGS.mock_agent_port, webhook_port=FLAGS.mock_webhook_port
     )
     self.agent_server.start()
 
   def tearDown(self) -> None:
-    """Tears down the test case, stopping servers and clients."""
+    """Tear down the test case, stopping servers and clients."""
     self.client.close()
     if hasattr(self, "agent_server"):
       self.agent_server.stop()
     super().tearDown()
 
   def create_checkout_payload(
-      self,
-      quantity=1,
-      item_id: Optional[str] = None,
-      title: Optional[str] = None,
-      currency: Optional[str] = None,
-      handlers=None,
-      buyer: Optional[Dict[str, Any]] = None,
-      include_fulfillment: bool = True,
+    self,
+    quantity=1,
+    item_id: str | None = None,
+    title: str | None = None,
+    currency: str | None = None,
+    handlers=None,
+    buyer: dict[str, Any] | None = None,
+    include_fulfillment: bool = True,
   ) -> checkout_create_req.CheckoutCreateRequest:
-    """Creates a valid checkout creation payload.
+    """Create a valid checkout creation payload.
 
     Args:
         quantity: Number of items to purchase. Defaults to 1.
@@ -404,12 +414,13 @@ class IntegrationTestBase(absltest.TestCase):
 
     Returns:
         A CheckoutCreateRequest object populated with the specified data.
+
     """
     # Load defaults from config if not provided
     default_item = (
-        self.conformance_config.get("items", [{}])[0]
-        if self.conformance_config
-        else {}
+      self.conformance_config.get("items", [{}])[0]
+      if self.conformance_config
+      else {}
     )
 
     if item_id is None:
@@ -421,65 +432,63 @@ class IntegrationTestBase(absltest.TestCase):
 
     if handlers is None:
       handlers = [
-          payment_handler_resp.PaymentHandlerResponse(
-              id="google_pay",
-              name="google.pay",
-              version="2026-01-11",
-              spec="https://example.com/spec",
-              config_schema="https://example.com/schema",
-              instrument_schemas=["https://example.com/instrument_schema"],
-              config={},
-          )
+        payment_handler_resp.PaymentHandlerResponse(
+          id="google_pay",
+          name="google.pay",
+          version="2026-01-11",
+          spec="https://example.com/spec",
+          config_schema="https://example.com/schema",
+          instrument_schemas=["https://example.com/instrument_schema"],
+          config={},
+        )
       ]
 
     item = item_create_req.ItemCreateRequest(id=item_id, title=title)
     line_item = line_item_create_req.LineItemCreateRequest(
-        quantity=quantity, item=item
+      quantity=quantity, item=item
     )
 
     # PaymentCreateRequest allows extra fields, so passing handlers is valid
     payment = payment_create_req.PaymentCreateRequest(
-        instruments=[],
-        selected_instrument_id="instr_1",
-        handlers=[
-            h.model_dump(mode="json", exclude_none=True) for h in handlers
-        ],
+      instruments=[],
+      selected_instrument_id="instr_1",
+      handlers=[h.model_dump(mode="json", exclude_none=True) for h in handlers],
     )
 
     fulfillment = None
     if include_fulfillment:
       # Hierarchical Fulfillment Construction
       destination = fulfillment_destination_req.FulfillmentDestinationRequest(
-          root=shipping_destination_req.ShippingDestinationRequest(
-              id="dest_1", address_country="US"
-          )
+        root=shipping_destination_req.ShippingDestinationRequest(
+          id="dest_1", address_country="US"
+        )
       )
       group = fulfillment_group_create_req.FulfillmentGroupCreateRequest(
-          selected_option_id="std-ship"
+        selected_option_id="std-ship"
       )
       method = fulfillment_method_create_req.FulfillmentMethodCreateRequest(
-          type="shipping",
-          destinations=[destination],
-          selected_destination_id="dest_1",
-          groups=[group],
+        type="shipping",
+        destinations=[destination],
+        selected_destination_id="dest_1",
+        groups=[group],
       )
       fulfillment = Fulfillment(
-          root=fulfillment_req.FulfillmentRequest(methods=[method])
+        root=fulfillment_req.FulfillmentRequest(methods=[method])
       )
 
     return checkout_create_req.CheckoutCreateRequest(
-        id=str(uuid.uuid4()),
-        currency=currency,
-        line_items=[line_item],
-        payment=payment,
-        buyer=buyer,
-        fulfillment=fulfillment,
+      id=str(uuid.uuid4()),
+      currency=currency,
+      line_items=[line_item],
+      payment=payment,
+      buyer=buyer,
+      fulfillment=fulfillment,
     )
 
   def get_headers(
-      self, idempotency_key: str | None = None, request_id: str | None = None
-  ) -> Dict[str, str]:
-    """Generates headers for UCP requests (instance method).
+    self, idempotency_key: str | None = None, request_id: str | None = None
+  ) -> dict[str, str]:
+    """Generate headers for UCP requests (instance method).
 
     Args:
         idempotency_key: Optional specific idempotency key.
@@ -487,13 +496,14 @@ class IntegrationTestBase(absltest.TestCase):
 
     Returns:
         A dictionary of HTTP headers including UCP-Agent, signature, and keys.
+
     """
     return get_headers(idempotency_key, request_id)
 
   def assert_response_status(
-      self, response: httpx.Response, expected_code: int | list[int]
+    self, response: httpx.Response, expected_code: int | list[int]
   ) -> None:
-    """Asserts that the response status code matches the expected code(s).
+    """Assert that the response status code matches the expected code(s).
 
     Args:
         response: The httpx response object.
@@ -502,6 +512,7 @@ class IntegrationTestBase(absltest.TestCase):
 
     Raises:
         AssertionError: If the response status code is not in expected_code.
+
     """
     if isinstance(expected_code, int):
       expected_codes = [expected_code]
@@ -509,26 +520,26 @@ class IntegrationTestBase(absltest.TestCase):
       expected_codes = expected_code
 
     self.assertIn(
-        response.status_code,
-        expected_codes,
-        msg=(
-            f"Expected status {expected_code}, got {response.status_code}."
-            f" Resp: {response.text}"
-        ),
+      response.status_code,
+      expected_codes,
+      msg=(
+        f"Expected status {expected_code}, got {response.status_code}."
+        f" Resp: {response.text}"
+      ),
     )
 
   def create_checkout_session(
-      self,
-      quantity: int = 1,
-      item_id: Optional[str] = None,
-      title: Optional[str] = None,
-      currency: Optional[str] = None,
-      handlers: list[Any] | None = None,
-      buyer: Optional[Dict[str, Any]] = None,
-      select_fulfillment: bool = True,
-      headers: Dict[str, str] | None = None,
+    self,
+    quantity: int = 1,
+    item_id: str | None = None,
+    title: str | None = None,
+    currency: str | None = None,
+    handlers: list[Any] | None = None,
+    buyer: dict[str, Any] | None = None,
+    select_fulfillment: bool = True,
+    headers: dict[str, str] | None = None,
   ) -> Any:
-    """Creates a checkout session and returns the response JSON.
+    """Create a checkout session and return the response JSON.
 
     Args:
         quantity: Number of items to purchase. Defaults to 1.
@@ -544,15 +555,16 @@ class IntegrationTestBase(absltest.TestCase):
 
     Returns:
         The JSON response dictionary from the create request.
+
     """
     create_payload = self.create_checkout_payload(
-        quantity=quantity,
-        item_id=item_id,
-        title=title,
-        currency=currency,
-        handlers=handlers,
-        buyer=buyer,
-        include_fulfillment=select_fulfillment,
+      quantity=quantity,
+      item_id=item_id,
+      title=title,
+      currency=currency,
+      handlers=handlers,
+      buyer=buyer,
+      include_fulfillment=select_fulfillment,
     )
 
     request_headers = self.get_headers()
@@ -560,11 +572,11 @@ class IntegrationTestBase(absltest.TestCase):
       request_headers.update(headers)
 
     response = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=request_headers,
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=request_headers,
     )
     self.assert_response_status(response, [200, 201])
     checkout_data = response.json()
@@ -575,16 +587,17 @@ class IntegrationTestBase(absltest.TestCase):
     return checkout_data
 
   def ensure_fulfillment_ready(self, checkout_id: str) -> Any:
-    """Ensures a fulfillment option is selected for the checkout.
+    """Ensure a fulfillment option is selected for the checkout.
 
     Args:
         checkout_id: The ID of the checkout to check and update.
 
     Returns:
         The updated checkout data dictionary.
+
     """
     response = self.client.get(
-        f"/checkout-sessions/{checkout_id}", headers=self.get_headers()
+      f"/checkout-sessions/{checkout_id}", headers=self.get_headers()
     )
     checkout_data = response.json()
 
@@ -595,11 +608,9 @@ class IntegrationTestBase(absltest.TestCase):
       method = data["fulfillment"]["methods"][0]
       if not method.get("selected_destination_id"):
         return False
-      if not method.get("groups") or not method["groups"][0].get(
-          "selected_option_id"
-      ):
-        return False
-      return True
+      return method.get("groups") and method["groups"][0].get(
+        "selected_option_id"
+      )
 
     if is_ready(checkout_data):
       return checkout_data
@@ -608,62 +619,61 @@ class IntegrationTestBase(absltest.TestCase):
 
     # 1. Trigger fulfillment with a default address if none exists
     has_destinations = (
-        checkout_data.get("fulfillment")
-        and checkout_data["fulfillment"].get("methods")
-        and checkout_data["fulfillment"]["methods"][0].get("destinations")
+      checkout_data.get("fulfillment")
+      and checkout_data["fulfillment"].get("methods")
+      and checkout_data["fulfillment"]["methods"][0].get("destinations")
     )
 
     if not has_destinations:
       # Inject a default US address
       address = {
-          "id": "dest_default",
-          "street_address": "123 Default St",
-          "address_locality": "City",
-          "address_region": "State",
-          "postal_code": "12345",
-          "address_country": "US",
+        "id": "dest_default",
+        "street_address": "123 Default St",
+        "address_locality": "City",
+        "address_region": "State",
+        "postal_code": "12345",
+        "address_country": "US",
       }
       # Preserve method ID if exists
       method_id = None
       if checkout_data.get("fulfillment") and checkout_data["fulfillment"].get(
-          "methods"
+        "methods"
       ):
         method_id = checkout_data["fulfillment"]["methods"][0].get("id")
 
       method_payload = {
-          "type": "shipping",
-          "destinations": [address],
-          "selected_destination_id": "dest_default",
+        "type": "shipping",
+        "destinations": [address],
+        "selected_destination_id": "dest_default",
       }
       if method_id:
         method_payload["id"] = method_id
 
       checkout_data = self.update_checkout_session(
-          checkout_obj,
-          fulfillment={"methods": [method_payload]},
+        checkout_obj,
+        fulfillment={"methods": [method_payload]},
       )
       checkout_obj = f_models.Checkout(**checkout_data)
 
     # 2. Select Destination (if not already selected)
     method = checkout_data["fulfillment"]["methods"][0]
-    if not method.get("selected_destination_id"):
-      if method.get("destinations"):
-        dest_id = method["destinations"][0]["id"]
+    if not method.get("selected_destination_id") and method.get("destinations"):
+      dest_id = method["destinations"][0]["id"]
 
-        # Construct update preserving destinations
-        method_payload = method.copy()
-        # method is a dict from json response
-        # We need to ensure we send back valid update data
-        # Response might have fields not valid for update?
-        # Usually safe to send back what we got + changes for this simple server
-        method_payload["selected_destination_id"] = dest_id
-        # Ensure we keep destinations
+      # Construct update preserving destinations
+      method_payload = method.copy()
+      # method is a dict from json response
+      # We need to ensure we send back valid update data
+      # Response might have fields not valid for update?
+      # Usually safe to send back what we got + changes for this simple server
+      method_payload["selected_destination_id"] = dest_id
+      # Ensure we keep destinations
 
-        checkout_data = self.update_checkout_session(
-            checkout_obj,
-            fulfillment={"methods": [method_payload]},
-        )
-        checkout_obj = f_models.Checkout(**checkout_data)
+      checkout_data = self.update_checkout_session(
+        checkout_obj,
+        fulfillment={"methods": [method_payload]},
+      )
+      checkout_obj = f_models.Checkout(**checkout_data)
 
     # 3. Select Option
     method = checkout_data["fulfillment"]["methods"][0]
@@ -674,26 +684,27 @@ class IntegrationTestBase(absltest.TestCase):
           has_selection = True
           break
 
-    if not has_selection:
-      if method.get("groups") and method["groups"][0].get("options"):
-        option_id = method["groups"][0]["options"][0]["id"]
+    if not has_selection and (
+      method.get("groups") and method["groups"][0].get("options")
+    ):
+      option_id = method["groups"][0]["options"][0]["id"]
 
-        # Update group
-        method_payload = method.copy()
-        # Ensure groups is a list of dicts
-        method_payload["groups"][0]["selected_option_id"] = option_id
+      # Update group
+      method_payload = method.copy()
+      # Ensure groups is a list of dicts
+      method_payload["groups"][0]["selected_option_id"] = option_id
 
-        checkout_data = self.update_checkout_session(
-            checkout_obj,
-            fulfillment={"methods": [method_payload]},
-        )
+      checkout_data = self.update_checkout_session(
+        checkout_obj,
+        fulfillment={"methods": [method_payload]},
+      )
 
     return checkout_data
 
   def complete_checkout_session(
-      self, checkout_id: str, payment_payload: Dict[str, Any] | None = None
+    self, checkout_id: str, payment_payload: dict[str, Any] | None = None
   ) -> Any:
-    """Completes a checkout session.
+    """Complete a checkout session.
 
     Args:
         checkout_id: The ID of the checkout to complete.
@@ -702,6 +713,7 @@ class IntegrationTestBase(absltest.TestCase):
 
     Returns:
         The JSON response dictionary from the complete request.
+
     """
     # Ensure fulfillment is set (required by server)
     self.ensure_fulfillment_ready(checkout_id)
@@ -710,15 +722,15 @@ class IntegrationTestBase(absltest.TestCase):
       payment_payload = get_valid_payment_payload()
 
     response = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=payment_payload,
-        headers=self.get_headers(),
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=payment_payload,
+      headers=self.get_headers(),
     )
     self.assert_response_status(response, 200)
     return response.json()
 
   def create_completed_order(self) -> str:
-    """Orchestrates checkout creation and completion.
+    """Orchestrate checkout creation and completion.
 
     This helper combines create_checkout_session and complete_checkout_session
     to quickly reach a "completed order" state for testing post-order
@@ -726,6 +738,7 @@ class IntegrationTestBase(absltest.TestCase):
 
     Returns:
         The 'order_id' from the completion response.
+
     """
     checkout_data = self.create_checkout_session()
     checkout_id = checkout_data["id"]
@@ -733,18 +746,18 @@ class IntegrationTestBase(absltest.TestCase):
     return complete_data["order"]["id"]
 
   def update_checkout_session(
-      self,
-      checkout_obj: Any,
-      currency: str | None = None,
-      line_items: list[Any] | None = None,
-      payment: Any | None = None,
-      buyer: Any | None = None,
-      fulfillment: Any | None = None,
-      discounts: Any | None = None,
-      platform: Any | None = None,
-      headers: Dict[str, str] | None = None,
+    self,
+    checkout_obj: Any,
+    currency: str | None = None,
+    line_items: list[Any] | None = None,
+    payment: Any | None = None,
+    buyer: Any | None = None,
+    fulfillment: Any | None = None,
+    discounts: Any | None = None,
+    platform: Any | None = None,
+    headers: dict[str, str] | None = None,
   ) -> Any:
-    """Updates a checkout session.
+    """Update a checkout session.
 
     Constructs a partial update request based on the existing checkout object
     and any provided override fields.
@@ -762,6 +775,7 @@ class IntegrationTestBase(absltest.TestCase):
 
     Returns:
         The JSON response dictionary from the update request.
+
     """
     # Default to existing values if not provided
     currency = currency if currency is not None else checkout_obj.currency
@@ -771,37 +785,37 @@ class IntegrationTestBase(absltest.TestCase):
       line_items = []
       for li in checkout_obj.line_items:
         item_update = item_update_req.ItemUpdateRequest(
-            id=li.item.id,
-            title=li.item.title,
+          id=li.item.id,
+          title=li.item.title,
         )
         line_items.append(
-            line_item_update_req.LineItemUpdateRequest(
-                id=li.id,
-                item=item_update,
-                quantity=li.quantity,
-            )
+          line_item_update_req.LineItemUpdateRequest(
+            id=li.id,
+            item=item_update,
+            quantity=li.quantity,
+          )
         )
 
     # Construct Payment
     if payment is None:
       payment = payment_update_req.PaymentUpdateRequest(
-          selected_instrument_id=checkout_obj.payment.selected_instrument_id,
-          instruments=checkout_obj.payment.instruments,
-          handlers=[
-              h.model_dump(mode="json", exclude_none=True)
-              for h in checkout_obj.payment.handlers
-          ],
+        selected_instrument_id=checkout_obj.payment.selected_instrument_id,
+        instruments=checkout_obj.payment.instruments,
+        handlers=[
+          h.model_dump(mode="json", exclude_none=True)
+          for h in checkout_obj.payment.handlers
+        ],
       )
 
     update_payload = UnifiedUpdate(
-        id=checkout_obj.id,
-        currency=currency,
-        line_items=line_items,
-        payment=payment,
-        buyer=buyer,
-        fulfillment=fulfillment,
-        discounts=discounts,
-        platform=platform,
+      id=checkout_obj.id,
+      currency=currency,
+      line_items=line_items,
+      payment=payment,
+      buyer=buyer,
+      fulfillment=fulfillment,
+      discounts=discounts,
+      platform=platform,
     )
 
     request_headers = self.get_headers()
@@ -809,11 +823,11 @@ class IntegrationTestBase(absltest.TestCase):
       request_headers.update(headers)
 
     response = self.client.put(
-        f"/checkout-sessions/{checkout_obj.id}",
-        json=update_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=request_headers,
+      f"/checkout-sessions/{checkout_obj.id}",
+      json=update_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=request_headers,
     )
     self.assert_response_status(response, 200)
     return response.json()

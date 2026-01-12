@@ -19,7 +19,9 @@ import integration_test_utils
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
 from ucp_sdk.models.schemas.shopping.ap2_mandate import Ap2CompleteRequest
 from ucp_sdk.models.schemas.shopping.ap2_mandate import CheckoutMandate
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
 from ucp_sdk.models.schemas.shopping.types import card_payment_instrument
 from ucp_sdk.models.schemas.shopping.types import payment_instrument
 from ucp_sdk.models.schemas.shopping.types import token_credential_resp
@@ -47,18 +49,18 @@ class Ap2MandateTest(integration_test_utils.IntegrationTestBase):
     checkout_id = checkout.Checkout(**response_json).id
 
     credential = token_credential_resp.TokenCredentialResponse(
-        type="token", token="success_token"
+      type="token", token="success_token"
     )
     instr = payment_instrument.PaymentInstrument(
-        root=card_payment_instrument.CardPaymentInstrument(
-            id="instr_1",
-            brand="visa",
-            last_digits="4242",
-            handler_id="mock_payment_handler",
-            handler_name="mock_payment_handler",
-            type="card",
-            credential=credential,
-        )
+      root=card_payment_instrument.CardPaymentInstrument(
+        id="instr_1",
+        brand="visa",
+        last_digits="4242",
+        handler_id="mock_payment_handler",
+        handler_name="mock_payment_handler",
+        type="card",
+        credential=credential,
+      )
     )
     payment_data = instr.root.model_dump(mode="json", exclude_none=True)
 
@@ -68,22 +70,22 @@ class Ap2MandateTest(integration_test_utils.IntegrationTestBase):
     ap2_data = Ap2CompleteRequest(checkout_mandate=mandate)
 
     payment_payload = {
-        "payment_data": payment_data,
-        "risk_signals": {},
-        "ap2": ap2_data.model_dump(mode="json", exclude_none=True),
+      "payment_data": payment_data,
+      "risk_signals": {},
+      "ap2": ap2_data.model_dump(mode="json", exclude_none=True),
     }
 
     response = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=payment_payload,
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=payment_payload,
+      headers=integration_test_utils.get_headers(),
     )
 
     self.assert_response_status(response, 200)
     self.assertEqual(
-        response.json().get("status"),
-        "completed",
-        msg="Checkout status not 'completed'",
+      response.json().get("status"),
+      "completed",
+      msg="Checkout status not 'completed'",
     )
 
 

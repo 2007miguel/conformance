@@ -20,7 +20,9 @@ from absl.testing import absltest
 import integration_test_utils
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
 from ucp_sdk.models.schemas.shopping import order
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
 
 # Rebuild models to resolve forward references
 checkout.Checkout.model_rebuild(_types_namespace={"PaymentResponse": Payment})
@@ -47,20 +49,20 @@ class InvalidInputTest(integration_test_utils.IntegrationTestBase):
 
     # Get Order
     response = self.client.get(
-        f"/orders/{order_id}", headers=self.get_headers()
+      f"/orders/{order_id}", headers=self.get_headers()
     )
     order_obj = order.Order(**response.json())
     order_dict = order_obj.model_dump(
-        mode="json", by_alias=True, exclude_none=True
+      mode="json", by_alias=True, exclude_none=True
     )
 
     # Add Adjustment with invalid status
     adj = {
-        "id": f"adj_{uuid.uuid4()}",
-        "type": "refund",
-        "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
-        "status": "INVALID_STATUS",  # Invalid literal
-        "amount": 500,
+      "id": f"adj_{uuid.uuid4()}",
+      "type": "refund",
+      "occurred_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+      "status": "INVALID_STATUS",  # Invalid literal
+      "amount": 500,
     }
 
     if order_dict.get("adjustments") is None:
@@ -69,9 +71,9 @@ class InvalidInputTest(integration_test_utils.IntegrationTestBase):
 
     # Update Order
     resp = self.client.put(
-        f"/orders/{order_id}",
-        json=order_dict,
-        headers=self.get_headers(),
+      f"/orders/{order_id}",
+      json=order_dict,
+      headers=self.get_headers(),
     )
     # Pydantic validation error should result in 422
     self.assert_response_status(resp, 422)
@@ -90,16 +92,16 @@ class InvalidInputTest(integration_test_utils.IntegrationTestBase):
     # Update with unknown discount code using helper
     # The helper preserves existing fields, so we just pass the discount
     resp_json = self.update_checkout_session(
-        checkout_obj, discounts={"codes": ["INVALID_CODE_123"]}
+      checkout_obj, discounts={"codes": ["INVALID_CODE_123"]}
     )
 
     updated_checkout = checkout.Checkout(**resp_json)
     # Verify no discount applied
     discount_total = next(
-        (t for t in updated_checkout.totals if t.type == "discount"), None
+      (t for t in updated_checkout.totals if t.type == "discount"), None
     )
     self.assertIsNone(
-        discount_total, "Unknown discount code should not apply discount"
+      discount_total, "Unknown discount code should not apply discount"
     )
 
   def test_malformed_adjustment_payload(self):
@@ -114,11 +116,11 @@ class InvalidInputTest(integration_test_utils.IntegrationTestBase):
 
     # Get Order
     response = self.client.get(
-        f"/orders/{order_id}", headers=self.get_headers()
+      f"/orders/{order_id}", headers=self.get_headers()
     )
     order_obj = order.Order(**response.json())
     order_dict = order_obj.model_dump(
-        mode="json", by_alias=True, exclude_none=True
+      mode="json", by_alias=True, exclude_none=True
     )
 
     # Malform the adjustments field (dict instead of list)
@@ -126,9 +128,9 @@ class InvalidInputTest(integration_test_utils.IntegrationTestBase):
 
     # Update Order
     resp = self.client.put(
-        f"/orders/{order_id}",
-        json=order_dict,
-        headers=self.get_headers(),
+      f"/orders/{order_id}",
+      json=order_dict,
+      headers=self.get_headers(),
     )
 
     self.assert_response_status(resp, 422)

@@ -25,8 +25,8 @@ class SecurityTest(integration_test_utils.IntegrationTestBase):
     """Test access without the secret header returns 403."""
     order_id = self.create_completed_order()
     response = self.client.post(
-        f"/testing/simulate-shipping/{order_id}",
-        headers=self.get_headers(),  # Standard headers only
+      f"/testing/simulate-shipping/{order_id}",
+      headers=self.get_headers(),  # Standard headers only
     )
     self.assert_response_status(response, 403)
 
@@ -36,8 +36,8 @@ class SecurityTest(integration_test_utils.IntegrationTestBase):
     headers = self.get_headers()
     headers["Simulation-Secret"] = "for-sure-incorrect-secret"
     response = self.client.post(
-        f"/testing/simulate-shipping/{order_id}",
-        headers=headers,
+      f"/testing/simulate-shipping/{order_id}",
+      headers=headers,
     )
     self.assert_response_status(response, 403)
 
@@ -46,11 +46,11 @@ class SecurityTest(integration_test_utils.IntegrationTestBase):
     order_id = self.create_completed_order()
     headers = self.get_headers()
     headers["Simulation-Secret"] = (
-        integration_test_utils.FLAGS.simulation_secret
+      integration_test_utils.FLAGS.simulation_secret
     )
     response = self.client.post(
-        f"/testing/simulate-shipping/{order_id}",
-        headers=headers,
+      f"/testing/simulate-shipping/{order_id}",
+      headers=headers,
     )
     self.assert_response_status(response, 200)
 

@@ -18,7 +18,9 @@ from absl.testing import absltest
 import integration_test_utils
 from ucp_sdk.models.discovery.profile_schema import UcpDiscoveryProfile
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
 
 # Rebuild models to resolve forward references
 checkout.Checkout.model_rebuild(_types_namespace={"PaymentResponse": Payment})
@@ -48,27 +50,27 @@ class ProtocolTest(integration_test_utils.IntegrationTestBase):
     profile = UcpDiscoveryProfile(**data)
 
     self.assertEqual(
-        profile.ucp.version.root,
-        "2026-01-11",
-        msg="Unexpected UCP version in discovery doc",
+      profile.ucp.version.root,
+      "2026-01-11",
+      msg="Unexpected UCP version in discovery doc",
     )
 
     # Verify Capabilities
     capabilities = {c.name for c in profile.ucp.capabilities}
     expected_capabilities = {
-        "dev.ucp.shopping.checkout",
-        "dev.ucp.shopping.order",
-        "dev.ucp.shopping.refund",
-        "dev.ucp.shopping.return",
-        "dev.ucp.shopping.dispute",
-        "dev.ucp.shopping.discount",
-        "dev.ucp.shopping.fulfillment",
-        "dev.ucp.shopping.buyer_consent",
+      "dev.ucp.shopping.checkout",
+      "dev.ucp.shopping.order",
+      "dev.ucp.shopping.refund",
+      "dev.ucp.shopping.return",
+      "dev.ucp.shopping.dispute",
+      "dev.ucp.shopping.discount",
+      "dev.ucp.shopping.fulfillment",
+      "dev.ucp.shopping.buyer_consent",
     }
     missing_caps = expected_capabilities - capabilities
     self.assertFalse(
-        missing_caps,
-        f"Missing expected capabilities in discovery: {missing_caps}",
+      missing_caps,
+      f"Missing expected capabilities in discovery: {missing_caps}",
     )
 
     # Verify Payment Handlers
@@ -76,14 +78,14 @@ class ProtocolTest(integration_test_utils.IntegrationTestBase):
     expected_handlers = {"google_pay", "mock_payment_handler", "shop_pay"}
     missing_handlers = expected_handlers - handlers
     self.assertFalse(
-        missing_handlers,
-        f"Missing expected payment handlers: {missing_handlers}",
+      missing_handlers,
+      f"Missing expected payment handlers: {missing_handlers}",
     )
 
     # Specific check for Shop Pay config
     shop_pay = next(
-        (h for h in profile.payment.handlers if h.id == "shop_pay"),
-        None,
+      (h for h in profile.payment.handlers if h.id == "shop_pay"),
+      None,
     )
     self.assertIsNotNone(shop_pay, "Shop Pay handler not found")
     self.assertEqual(shop_pay.name, "com.shopify.shop_pay")
@@ -104,22 +106,22 @@ class ProtocolTest(integration_test_utils.IntegrationTestBase):
     headers = integration_test_utils.get_headers()
     headers["UCP-Agent"] = 'profile="..."; version="2026-01-11"'
     response = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=headers,
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=headers,
     )
     self.assert_response_status(response, [200, 201])
 
     # 2. Incompatible Version
     headers["UCP-Agent"] = 'profile="..."; version="2099-01-01"'
     response = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=headers,
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=headers,
     )
     self.assert_response_status(response, 400)
 

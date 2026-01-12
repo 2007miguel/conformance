@@ -19,7 +19,10 @@ import uuid
 from absl.testing import absltest
 import integration_test_utils
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
+
 # Rebuild models to resolve forward references
 checkout.Checkout.model_rebuild(_types_namespace={"PaymentResponse": Payment})
 
@@ -48,42 +51,42 @@ class IdempotencyTest(integration_test_utils.IntegrationTestBase):
     # 1. Initial Request
     headers = integration_test_utils.get_headers(idempotency_key=idem_key)
     response1 = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=headers,
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=headers,
     )
     self.assert_response_status(response1, [200, 201])
 
     # 2. Duplicate Request
     response2 = self.client.post(
-        "/checkout-sessions",
-        json=create_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=headers,
+      "/checkout-sessions",
+      json=create_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=headers,
     )
     self.assertEqual(
-        response2.status_code,
-        response1.status_code,
-        msg="Idempotency Failed: Status code mismatch.",
+      response2.status_code,
+      response1.status_code,
+      msg="Idempotency Failed: Status code mismatch.",
     )
     self.assertEqual(
-        response2.json(),
-        response1.json(),
-        msg="Idempotency Failed: Response body mismatch.",
+      response2.json(),
+      response1.json(),
+      msg="Idempotency Failed: Response body mismatch.",
     )
 
     # 3. Conflict Request
     conflict_payload = create_payload.model_copy(deep=True)
     conflict_payload.currency = "EUR"
     response3 = self.client.post(
-        "/checkout-sessions",
-        json=conflict_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=headers,
+      "/checkout-sessions",
+      json=conflict_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=headers,
     )
     self.assert_response_status(response3, 409)
 
@@ -107,50 +110,51 @@ class IdempotencyTest(integration_test_utils.IntegrationTestBase):
     # We construct the update payload same as helper does
     line_items_req = []
     for li in checkout_obj.line_items:
-      line_items_req.append({
+      line_items_req.append(
+        {
           "item": {"id": li.item.id, "title": li.item.title},
           "quantity": 2,  # Change quantity
           "id": li.id,
-      })
+        }
+      )
 
-    print("payment", checkout_obj.payment.selected_instrument_id)
     payment_req = {
-        "selected_instrument_id": checkout_obj.payment.selected_instrument_id,
-        "instruments": [
-            i.model_dump(mode="json", exclude_none=True)
-            for i in checkout_obj.payment.instruments
-        ],
+      "selected_instrument_id": checkout_obj.payment.selected_instrument_id,
+      "instruments": [
+        i.model_dump(mode="json", exclude_none=True)
+        for i in checkout_obj.payment.instruments
+      ],
     }
 
     update_payload = {
-        "id": checkout_obj.id,
-        "currency": checkout_obj.currency,
-        "line_items": line_items_req,
-        "payment": payment_req,
+      "id": checkout_obj.id,
+      "currency": checkout_obj.currency,
+      "line_items": line_items_req,
+      "payment": payment_req,
     }
 
     response1 = self.client.put(
-        f"/checkout-sessions/{checkout_obj.id}",
-        json=update_payload,
-        headers=headers,
+      f"/checkout-sessions/{checkout_obj.id}",
+      json=update_payload,
+      headers=headers,
     )
     self.assert_response_status(response1, 200)
 
     # 2. Duplicate Request
     response2 = self.client.put(
-        f"/checkout-sessions/{checkout_obj.id}",
-        json=update_payload,
-        headers=headers,
+      f"/checkout-sessions/{checkout_obj.id}",
+      json=update_payload,
+      headers=headers,
     )
     self.assertEqual(
-        response2.status_code,
-        200,
-        msg="Idempotency Update Failed: Status code mismatch.",
+      response2.status_code,
+      200,
+      msg="Idempotency Update Failed: Status code mismatch.",
     )
     self.assertEqual(
-        response2.json(),
-        response1.json(),
-        msg="Idempotency Update Failed: Response body mismatch.",
+      response2.json(),
+      response1.json(),
+      msg="Idempotency Update Failed: Response body mismatch.",
     )
 
     # 3. Conflict Request
@@ -158,9 +162,9 @@ class IdempotencyTest(integration_test_utils.IntegrationTestBase):
     conflict_payload["line_items"][0]["quantity"] = 3
 
     response3 = self.client.put(
-        f"/checkout-sessions/{checkout_obj.id}",
-        json=conflict_payload,
-        headers=headers,
+      f"/checkout-sessions/{checkout_obj.id}",
+      json=conflict_payload,
+      headers=headers,
     )
     self.assert_response_status(response3, 409)
 
@@ -182,38 +186,38 @@ class IdempotencyTest(integration_test_utils.IntegrationTestBase):
     complete_payload = integration_test_utils.get_valid_payment_payload()
 
     response1 = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=complete_payload,
-        headers=headers,
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=complete_payload,
+      headers=headers,
     )
     self.assert_response_status(response1, 200)
 
     # 2. Duplicate Request
     response2 = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=complete_payload,
-        headers=headers,
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=complete_payload,
+      headers=headers,
     )
     self.assertEqual(
-        response2.status_code,
-        200,
-        msg="Idempotency Complete Failed: Status code mismatch.",
+      response2.status_code,
+      200,
+      msg="Idempotency Complete Failed: Status code mismatch.",
     )
     self.assertEqual(
-        response2.json(),
-        response1.json(),
-        msg="Idempotency Complete Failed: Response body mismatch.",
+      response2.json(),
+      response1.json(),
+      msg="Idempotency Complete Failed: Response body mismatch.",
     )
 
     # 3. Conflict Request
     complete_payload_diff = integration_test_utils.get_valid_payment_payload()
-    complete_payload_diff["payment_data"]["credential"][
-        "token"
-    ] = "different_token"
+    complete_payload_diff["payment_data"]["credential"]["token"] = (
+      "different_token"
+    )
     response3 = self.client.post(
-        f"/checkout-sessions/{checkout_id}/complete",
-        json=complete_payload_diff,
-        headers=headers,
+      f"/checkout-sessions/{checkout_id}/complete",
+      json=complete_payload_diff,
+      headers=headers,
     )
     self.assert_response_status(response3, 409)
 
@@ -232,25 +236,25 @@ class IdempotencyTest(integration_test_utils.IntegrationTestBase):
     headers = integration_test_utils.get_headers(idempotency_key=idem_key)
 
     response1 = self.client.post(
-        f"/checkout-sessions/{checkout_id}/cancel",
-        headers=headers,
+      f"/checkout-sessions/{checkout_id}/cancel",
+      headers=headers,
     )
     self.assert_response_status(response1, 200)
 
     # 2. Duplicate Request
     response2 = self.client.post(
-        f"/checkout-sessions/{checkout_id}/cancel",
-        headers=headers,
+      f"/checkout-sessions/{checkout_id}/cancel",
+      headers=headers,
     )
     self.assertEqual(
-        response2.status_code,
-        200,
-        msg="Idempotency Cancel Failed: Status code mismatch.",
+      response2.status_code,
+      200,
+      msg="Idempotency Cancel Failed: Status code mismatch.",
     )
     self.assertEqual(
-        response2.json(),
-        response1.json(),
-        msg="Idempotency Cancel Failed: Response body mismatch.",
+      response2.json(),
+      response1.json(),
+      msg="Idempotency Cancel Failed: Response body mismatch.",
     )
 
 

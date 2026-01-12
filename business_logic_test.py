@@ -21,7 +21,9 @@ from ucp_sdk.models.schemas.shopping import checkout_update_req
 from ucp_sdk.models.schemas.shopping import discount_resp as discount
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
 from ucp_sdk.models.schemas.shopping import payment_update_req
-from ucp_sdk.models.schemas.shopping.payment_resp import PaymentResponse as Payment
+from ucp_sdk.models.schemas.shopping.payment_resp import (
+  PaymentResponse as Payment,
+)
 from ucp_sdk.models.schemas.shopping.types import buyer
 from ucp_sdk.models.schemas.shopping.types import item_update_req
 from ucp_sdk.models.schemas.shopping.types import line_item_update_req
@@ -50,9 +52,9 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
     """
     # Get expected item details from config
     default_item = (
-        self.conformance_config.get("items", [{}])[0]
-        if self.conformance_config
-        else {}
+      self.conformance_config.get("items", [{}])[0]
+      if self.conformance_config
+      else {}
     )
     expected_price = int(default_item.get("price", 3500))
 
@@ -60,50 +62,50 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
     # if not specified, but the server should ignore client-provided values
     # and use the authoritative price from its DB (which matches our config).
     response_json = self.create_checkout_session(
-        title="Wrong Title", select_fulfillment=False
+      title="Wrong Title", select_fulfillment=False
     )
     checkout_obj = checkout.Checkout(**response_json)
 
     # Verify Line Item Calculations
     line_item = checkout_obj.line_items[0]
     li_subtotal = next(
-        (t.amount for t in line_item.totals if t.type == "subtotal"), 0
+      (t.amount for t in line_item.totals if t.type == "subtotal"), 0
     )
     li_total = next(
-        (t.amount for t in line_item.totals if t.type == "total"), 0
+      (t.amount for t in line_item.totals if t.type == "total"), 0
     )
 
     self.assertEqual(
-        li_subtotal,
-        expected_price,
-        f"Line item subtotal should match DB price {expected_price}",
+      li_subtotal,
+      expected_price,
+      f"Line item subtotal should match DB price {expected_price}",
     )
     self.assertEqual(
-        li_total,
-        expected_price,
-        f"Line item total should match DB price {expected_price}",
+      li_total,
+      expected_price,
+      f"Line item total should match DB price {expected_price}",
     )
 
     # Verify Totals Breakdown
     subtotal = next(
-        (t for t in checkout_obj.totals if t.type == "subtotal"), None
+      (t for t in checkout_obj.totals if t.type == "subtotal"), None
     )
     total_obj = next(
-        (t for t in checkout_obj.totals if t.type == "total"), None
+      (t for t in checkout_obj.totals if t.type == "total"), None
     )
 
     self.assertIsNotNone(subtotal, "Subtotal missing")
     self.assertEqual(
-        subtotal.amount,
-        expected_price,
-        f"Subtotal amount should match DB price {expected_price}",
+      subtotal.amount,
+      expected_price,
+      f"Subtotal amount should match DB price {expected_price}",
     )
 
     self.assertIsNotNone(total_obj, "Total missing")
     self.assertEqual(
-        total_obj.amount,
-        expected_price,
-        f"Total amount should match DB price {expected_price}",
+      total_obj.amount,
+      expected_price,
+      f"Total amount should match DB price {expected_price}",
     )
 
   def test_totals_recalculation_on_update(self):
@@ -120,59 +122,59 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
 
     # Get expected price from config
     expected_price = (
-        self.conformance_config.get("items", [{}])[0].get("price", 3500)
-        if self.conformance_config
-        else 3500
+      self.conformance_config.get("items", [{}])[0].get("price", 3500)
+      if self.conformance_config
+      else 3500
     )
     expected_price = int(expected_price)
 
     # Update quantity to 2. Total should be 2 * expected_price.
     item_update = item_update_req.ItemUpdateRequest(
-        id=checkout_obj.line_items[0].item.id,
-        title=checkout_obj.line_items[0].item.title,
+      id=checkout_obj.line_items[0].item.id,
+      title=checkout_obj.line_items[0].item.title,
     )
     line_item_update = line_item_update_req.LineItemUpdateRequest(
-        id=checkout_obj.line_items[0].id,
-        item=item_update,
-        quantity=2,
+      id=checkout_obj.line_items[0].id,
+      item=item_update,
+      quantity=2,
     )
     payment_update = payment_update_req.PaymentUpdateRequest(
-        selected_instrument_id=checkout_obj.payment.selected_instrument_id,
-        instruments=checkout_obj.payment.instruments,
-        handlers=[
-            h.model_dump(mode="json", exclude_none=True)
-            for h in checkout_obj.payment.handlers
-        ],
+      selected_instrument_id=checkout_obj.payment.selected_instrument_id,
+      instruments=checkout_obj.payment.instruments,
+      handlers=[
+        h.model_dump(mode="json", exclude_none=True)
+        for h in checkout_obj.payment.handlers
+      ],
     )
 
     update_payload = checkout_update_req.CheckoutUpdateRequest(
-        id=checkout_id,
-        currency=checkout_obj.currency,
-        line_items=[line_item_update],
-        payment=payment_update,
+      id=checkout_id,
+      currency=checkout_obj.currency,
+      line_items=[line_item_update],
+      payment=payment_update,
     )
 
     response = self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=integration_test_utils.get_headers(),
     )
     self.assert_response_status(response, 200)
 
     updated_checkout = checkout.Checkout(**response.json())
     total_obj = next(
-        (t for t in updated_checkout.totals if t.type == "total"), None
+      (t for t in updated_checkout.totals if t.type == "total"), None
     )
     expected_total = expected_price * 2
     self.assertEqual(
-        total_obj.amount,
-        expected_total,
-        msg=(
-            "Server did not correct totals on update. Expected"
-            f" {expected_total}, got {total_obj.amount}"
-        ),
+      total_obj.amount,
+      expected_total,
+      msg=(
+        "Server did not correct totals on update. Expected"
+        f" {expected_total}, got {total_obj.amount}"
+      ),
     )
 
   def test_discount_flow(self):
@@ -189,47 +191,47 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
 
     # Get expected price from config
     expected_price = (
-        self.conformance_config.get("items", [{}])[0].get("price", 3500)
-        if self.conformance_config
-        else 3500
+      self.conformance_config.get("items", [{}])[0].get("price", 3500)
+      if self.conformance_config
+      else 3500
     )
     expected_price = int(expected_price)
 
     # Apply Discount
     item_update = item_update_req.ItemUpdateRequest(
-        id=checkout_obj.line_items[0].item.id,
-        title=checkout_obj.line_items[0].item.title,
+      id=checkout_obj.line_items[0].item.id,
+      title=checkout_obj.line_items[0].item.title,
     )
     line_item_update = line_item_update_req.LineItemUpdateRequest(
-        id=checkout_obj.line_items[0].id,
-        item=item_update,
-        quantity=1,
+      id=checkout_obj.line_items[0].id,
+      item=item_update,
+      quantity=1,
     )
     payment_update = payment_update_req.PaymentUpdateRequest(
-        selected_instrument_id=checkout_obj.payment.selected_instrument_id,
-        instruments=checkout_obj.payment.instruments,
-        handlers=[
-            h.model_dump(mode="json", exclude_none=True)
-            for h in checkout_obj.payment.handlers
-        ],
+      selected_instrument_id=checkout_obj.payment.selected_instrument_id,
+      instruments=checkout_obj.payment.instruments,
+      handlers=[
+        h.model_dump(mode="json", exclude_none=True)
+        for h in checkout_obj.payment.handlers
+      ],
     )
 
     update_payload = checkout_update_req.CheckoutUpdateRequest(
-        id=checkout_id,
-        currency=checkout_obj.currency,
-        line_items=[line_item_update],
-        payment=payment_update,
+      id=checkout_id,
+      currency=checkout_obj.currency,
+      line_items=[line_item_update],
+      payment=payment_update,
     )
 
     update_dict = update_payload.model_dump(
-        mode="json", by_alias=True, exclude_none=True
+      mode="json", by_alias=True, exclude_none=True
     )
     update_dict["discounts"] = {"codes": ["10OFF"]}
 
     response = self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_dict,
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_dict,
+      headers=integration_test_utils.get_headers(),
     )
     self.assert_response_status(response, 200)
 
@@ -237,32 +239,32 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
     expected_total = int(expected_price * 0.9)
 
     total_obj = next(
-        (t for t in discounted_checkout.totals if t.type == "total"), None
+      (t for t in discounted_checkout.totals if t.type == "total"), None
     )
     self.assertIsNotNone(total_obj, "Total object missing")
     self.assertEqual(
-        total_obj.amount,
-        expected_total,
-        msg=(
-            f"Discount not applied correctly. Expected {expected_total}, got"
-            f" {total_obj.amount}"
-        ),
+      total_obj.amount,
+      expected_total,
+      msg=(
+        f"Discount not applied correctly. Expected {expected_total}, got"
+        f" {total_obj.amount}"
+      ),
     )
 
     # Parse discounts from extra fields
     discounts_data = getattr(discounted_checkout, "discounts", {})
     discounts_obj = (
-        discount.DiscountsObject(**discounts_data) if discounts_data else None
+      discount.DiscountsObject(**discounts_data) if discounts_data else None
     )
 
     self.assertTrue(
-        discounts_obj and discounts_obj.applied,
-        "Applied discounts field missing",
+      discounts_obj and discounts_obj.applied,
+      "Applied discounts field missing",
     )
     self.assertEqual(
-        discounts_obj.applied[0].code,
-        "10OFF",
-        "Applied discounts field incorrect",
+      discounts_obj.applied[0].code,
+      "10OFF",
+      "Applied discounts field incorrect",
     )
 
   def test_multiple_discounts_accepted(self):
@@ -278,16 +280,16 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
 
     # Get expected price from config
     expected_price = (
-        self.conformance_config.get("items", [{}])[0].get("price", 3500)
-        if self.conformance_config
-        else 3500
+      self.conformance_config.get("items", [{}])[0].get("price", 3500)
+      if self.conformance_config
+      else 3500
     )
     expected_price = int(expected_price)
 
     # Apply both discounts using helper to ensure all required fields are
     # present
     response_json = self.update_checkout_session(
-        checkout_obj, discounts={"codes": ["10OFF", "WELCOME20"]}
+      checkout_obj, discounts={"codes": ["10OFF", "WELCOME20"]}
     )
 
     discounted_checkout = checkout.Checkout(**response_json)
@@ -295,19 +297,19 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
     expected_total = int(int(expected_price * 0.9) * 0.8)
 
     total_obj = next(
-        (t for t in discounted_checkout.totals if t.type == "total"), None
+      (t for t in discounted_checkout.totals if t.type == "total"), None
     )
     self.assertEqual(
-        total_obj.amount,
-        expected_total,
-        f"Multiple discounts failed. Exp {expected_total}, "
-        f"got {total_obj.amount}",
+      total_obj.amount,
+      expected_total,
+      f"Multiple discounts failed. Exp {expected_total}, "
+      f"got {total_obj.amount}",
     )
 
     # Verify both applied discounts are present
     discounts_data = getattr(discounted_checkout, "discounts", {})
     discounts_obj = (
-        discount.DiscountsObject(**discounts_data) if discounts_data else None
+      discount.DiscountsObject(**discounts_data) if discounts_data else None
     )
     self.assertTrue(discounts_obj and len(discounts_obj.applied) == 2)
     applied_codes = [d.code for d in discounts_obj.applied]
@@ -327,15 +329,15 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
 
     # Get expected price
     expected_price = (
-        self.conformance_config.get("items", [{}])[0].get("price", 3500)
-        if self.conformance_config
-        else 3500
+      self.conformance_config.get("items", [{}])[0].get("price", 3500)
+      if self.conformance_config
+      else 3500
     )
     expected_price = int(expected_price)
 
     # Apply one valid and one invalid discount using helper
     response_json = self.update_checkout_session(
-        checkout_obj, discounts={"codes": ["10OFF", "INVALID_CODE"]}
+      checkout_obj, discounts={"codes": ["10OFF", "INVALID_CODE"]}
     )
 
     discounted_checkout = checkout.Checkout(**response_json)
@@ -343,14 +345,14 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
     expected_total = int(expected_price * 0.9)
 
     total_obj = next(
-        (t for t in discounted_checkout.totals if t.type == "total"), None
+      (t for t in discounted_checkout.totals if t.type == "total"), None
     )
     self.assertEqual(total_obj.amount, expected_total)
 
     # Verify only one applied discount is present
     discounts_data = getattr(discounted_checkout, "discounts", {})
     discounts_obj = (
-        discount.DiscountsObject(**discounts_data) if discounts_data else None
+      discount.DiscountsObject(**discounts_data) if discounts_data else None
     )
     self.assertTrue(discounts_obj and len(discounts_obj.applied) == 1)
     self.assertEqual(discounts_obj.applied[0].code, "10OFF")
@@ -368,15 +370,15 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
 
     # Get expected price from config
     expected_price = (
-        self.conformance_config.get("items", [{}])[0].get("price", 3500)
-        if self.conformance_config
-        else 3500
+      self.conformance_config.get("items", [{}])[0].get("price", 3500)
+      if self.conformance_config
+      else 3500
     )
     expected_price = int(expected_price)
 
     # Apply Fixed-amount Discount
     response_json = self.update_checkout_session(
-        checkout_obj, discounts={"codes": ["FIXED500"]}
+      checkout_obj, discounts={"codes": ["FIXED500"]}
     )
 
     discounted_checkout = checkout.Checkout(**response_json)
@@ -384,35 +386,34 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
     expected_total = expected_price - 500
 
     total_obj = next(
-        (t for t in discounted_checkout.totals if t.type == "total"), None
+      (t for t in discounted_checkout.totals if t.type == "total"), None
     )
     self.assertIsNotNone(total_obj, "Total object missing")
     self.assertEqual(
-        total_obj.amount,
-        expected_total,
-        msg=(
-            f"Fixed discount failed. Exp {expected_total}, got"
-            f" {total_obj.amount}"
-        ),
+      total_obj.amount,
+      expected_total,
+      msg=(
+        f"Fixed discount failed. Exp {expected_total}, got {total_obj.amount}"
+      ),
     )
 
     # Parse discounts from extra fields
     discounts_data = getattr(discounted_checkout, "discounts", {})
     discounts_obj = (
-        discount.DiscountsObject(**discounts_data) if discounts_data else None
+      discount.DiscountsObject(**discounts_data) if discounts_data else None
     )
 
     self.assertTrue(
-        discounts_obj and discounts_obj.applied,
-        "Applied discounts field missing",
+      discounts_obj and discounts_obj.applied,
+      "Applied discounts field missing",
     )
     self.assertEqual(
-        discounts_obj.applied[0].code,
-        "FIXED500",
+      discounts_obj.applied[0].code,
+      "FIXED500",
     )
     self.assertEqual(
-        discounts_obj.applied[0].amount,
-        500,
+      discounts_obj.applied[0].amount,
+      500,
     )
 
   def test_buyer_consent(self):
@@ -428,34 +429,34 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
 
     # Add consent info
     consent_obj = buyer_consent.Consent(
-        marketing=True,
-        analytics=False,
-        sale_of_data=False,
+      marketing=True,
+      analytics=False,
+      sale_of_data=False,
     )
 
     create_payload_dict = create_payload.model_dump(
-        mode="json", by_alias=True, exclude_none=True
+      mode="json", by_alias=True, exclude_none=True
     )
     create_payload_dict["buyer"] = {
-        "first_name": "Consent",
-        "last_name": "Tester",
-        "email": "consent@example.com",
-        "consent": consent_obj.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
+      "first_name": "Consent",
+      "last_name": "Tester",
+      "email": "consent@example.com",
+      "consent": consent_obj.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
     }
 
     response = self.client.post(
-        "/checkout-sessions",
-        json=create_payload_dict,
-        headers=integration_test_utils.get_headers(),
+      "/checkout-sessions",
+      json=create_payload_dict,
+      headers=integration_test_utils.get_headers(),
     )
     self.assert_response_status(response, 201)
     checkout_id = checkout.Checkout(**response.json()).id
 
     response = self.client.get(
-        f"/checkout-sessions/{checkout_id}",
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      headers=integration_test_utils.get_headers(),
     )
     self.assert_response_status(response, 200)
 
@@ -470,12 +471,12 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
     consent_model = buyer_consent.Consent(**consent_data)
 
     self.assertTrue(
-        consent_model.marketing,
-        f"Marketing consent not persisted. Resp: {consent_model}",
+      consent_model.marketing,
+      f"Marketing consent not persisted. Resp: {consent_model}",
     )
     self.assertFalse(
-        consent_model.analytics,
-        f"Analytics consent not persisted. Resp: {consent_model}",
+      consent_model.analytics,
+      f"Analytics consent not persisted. Resp: {consent_model}",
     )
 
   def test_buyer_info_persistence(self):
@@ -492,56 +493,56 @@ class BusinessLogicTest(integration_test_utils.IntegrationTestBase):
 
     # Update with buyer info
     item_update = item_update_req.ItemUpdateRequest(
-        id=checkout_obj.line_items[0].item.id,
-        title=checkout_obj.line_items[0].item.title,
+      id=checkout_obj.line_items[0].item.id,
+      title=checkout_obj.line_items[0].item.title,
     )
     line_item_update = line_item_update_req.LineItemUpdateRequest(
-        id=checkout_obj.line_items[0].id,
-        item=item_update,
-        quantity=1,
+      id=checkout_obj.line_items[0].id,
+      item=item_update,
+      quantity=1,
     )
     payment_update = payment_update_req.PaymentUpdateRequest(
-        selected_instrument_id=checkout_obj.payment.selected_instrument_id,
-        instruments=checkout_obj.payment.instruments,
-        handlers=[
-            h.model_dump(mode="json", exclude_none=True)
-            for h in checkout_obj.payment.handlers
-        ],
+      selected_instrument_id=checkout_obj.payment.selected_instrument_id,
+      instruments=checkout_obj.payment.instruments,
+      handlers=[
+        h.model_dump(mode="json", exclude_none=True)
+        for h in checkout_obj.payment.handlers
+      ],
     )
 
     update_payload = checkout_update_req.CheckoutUpdateRequest(
-        id=checkout_id,
-        currency=checkout_obj.currency,
-        line_items=[line_item_update],
-        payment=payment_update,
-        buyer=buyer.Buyer(
-            email="test@example.com",
-            first_name="Test",
-            last_name="User",
-        ),
+      id=checkout_id,
+      currency=checkout_obj.currency,
+      line_items=[line_item_update],
+      payment=payment_update,
+      buyer=buyer.Buyer(
+        email="test@example.com",
+        first_name="Test",
+        last_name="User",
+      ),
     )
 
     response = self.client.put(
-        f"/checkout-sessions/{checkout_id}",
-        json=update_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
-        ),
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      json=update_payload.model_dump(
+        mode="json", by_alias=True, exclude_none=True
+      ),
+      headers=integration_test_utils.get_headers(),
     )
     self.assert_response_status(response, 200)
 
     # GET and verify
     response = self.client.get(
-        f"/checkout-sessions/{checkout_id}",
-        headers=integration_test_utils.get_headers(),
+      f"/checkout-sessions/{checkout_id}",
+      headers=integration_test_utils.get_headers(),
     )
     checkout_obj = checkout.Checkout(**response.json())
     self.assertTrue(checkout_obj.buyer, "Buyer info missing")
     self.assertEqual(
-        checkout_obj.buyer.email, "test@example.com", "Email mismatch"
+      checkout_obj.buyer.email, "test@example.com", "Email mismatch"
     )
     self.assertEqual(
-        checkout_obj.buyer.first_name, "Test", "First name mismatch"
+      checkout_obj.buyer.first_name, "Test", "First name mismatch"
     )
 
 
