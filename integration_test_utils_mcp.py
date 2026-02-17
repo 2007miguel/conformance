@@ -383,22 +383,23 @@ class IntegrationTestBase(absltest.TestCase):
       port=FLAGS.mock_agent_port, webhook_port=FLAGS.mock_webhook_port
     )
     self.agent_server.start()
-    self._shopping_service_endpoint: str | None = None
+    self._shopping_service_mcp_endpoint: str | None = None
 
-  @property
+  @property #-------------------------------------------------------------------------------------------------------------
   def shopping_service_endpoint(self) -> str:
     """Cached property for the shopping service endpoint."""
-    if self._shopping_service_endpoint is None:
+    if self._shopping_service_mcp_endpoint is None:
       discovery_resp = self.client.get("/.well-known/ucp")
       self.assert_response_status(discovery_resp, 200)
       profile = UcpDiscoveryProfile(**discovery_resp.json())
+      # Discover the MCP endpoint for the shopping service.
       shopping_service = profile.ucp.services.root.get("dev.ucp.shopping")
-      if not shopping_service or not shopping_service.rest:
-        raise RuntimeError("Shopping service not found in discovery profile")
-      self._shopping_service_endpoint = str(shopping_service.rest.endpoint)
-    return self._shopping_service_endpoint
+      if not shopping_service or not shopping_service.mcp:
+        raise RuntimeError("Shopping service with MCP binding not found in discovery profile")
+      self._shopping_service_mcp_endpoint = str(shopping_service.mcp.endpoint)
+    return self._shopping_service_mcp_endpoint
 
-  def get_shopping_url(self, path: str) -> str:
+  def get_shopping_url(self, path: str) -> str: #------------------------------------------------------------------------------
     """Construct a full URL for the shopping service.
 
     Args:
@@ -409,9 +410,10 @@ class IntegrationTestBase(absltest.TestCase):
         The full URL.
 
     """
-    base = self.shopping_service_endpoint.rstrip("/")
-    path = path.lstrip("/")
-    return f"{base}/{path}"
+    # This method is now only used for compatibility with old test structures
+    # that might build URLs. For MCP, we use a single endpoint.
+    # We can point it to the MCP endpoint.
+    return self.shopping_service_endpoint
 
   def tearDown(self) -> None:
     """Tear down the test case, stopping servers and clients."""
@@ -460,7 +462,7 @@ class IntegrationTestBase(absltest.TestCase):
     if currency is None:
       currency = self.conformance_config.get("currency", "USD")
 
-    if handlers is None:
+    if handlers is None: # posible problema ------------------------------------------------
       handlers = [
         payment_handler_resp.PaymentHandlerResponse(
           id="google_pay",
@@ -515,6 +517,66 @@ class IntegrationTestBase(absltest.TestCase):
       fulfillment=fulfillment,
     )
 
+  def get_mcp_meta(
+    self, idempotency_key: str | None = None, request_id: str | None = None
+  ) -> dict[str, Any]:
+    """Generate the _meta object for a UCP MCP request.
+
+    Args:
+        idempotency_key: Optional specific idempotency key.
+        request_id: Optional specific request ID.
+
+    Returns:
+        A dictionary to be used as the _meta field in a JSON-RPC request.
+    """
+    profile_url = (
+      f"http://localhost:{FLAGS.mock_agent_port}{AgentProfileServer.PROFILE_PATH}"
+    )
+    return {
+        "ucp": {"profile": profile_url},
+        "request_signature": "test",
+        "idempotency_key": idempotency_key or str(uuid.uuid4()),
+        "request_id": request_id or str(uuid.uuid4()),
+    }
+
+  def call_tool(
+    self, tool_name: str, arguments: dict[str, Any]
+  ) -> Any:
+    """Executes a UCP Shopping tool via MCP (JSON-RPC 2.0).
+
+    Args:
+        tool_name: The name of the shopping tool (e.g., 'create_checkout').
+        arguments: The arguments for the tool, including the _meta object.
+
+    Returns:
+        The 'result' from the JSON-RPC response.
+    """
+    payload = {
+        "jsonrpc": "2.0",
+        "id": str(uuid.uuid4()),
+        "method": "tools/call",
+        "params": {"name": tool_name, "arguments": arguments},
+    }
+    response = self.client.post(self.shopping_service_endpoint, json=payload)
+    #self.assert_response_status(response, 200)
+    response_data = response.json()
+
+    # Si el servidor devuelve un error a nivel de HTTP Y un cuerpo de error JSON-RPC,
+    # priorizamos el error JSON-RPC, que es lo que la prueba de negociación de versión espera.
+    # Si no hay error en el cuerpo, entonces sí validamos el código de estado HTTP.
+
+    if "error" in response_data:
+      err = response_data["error"]
+      raise RuntimeError(
+          f"MCP tool call failed: {err.get('code')} {err.get('message')} -"
+          f" {err.get('data')}"
+      )
+
+    # If there was no JSON-RPC error in the body, now we assert that the
+    # HTTP status code was successful.
+    self.assert_response_status(response, 200)
+    return response_data.get("result")
+
   def get_headers(
     self, idempotency_key: str | None = None, request_id: str | None = None
   ) -> dict[str, str]:
@@ -526,7 +588,6 @@ class IntegrationTestBase(absltest.TestCase):
 
     Returns:
         A dictionary of HTTP headers including UCP-Agent, signature, and keys.
-
     """
     return get_headers(idempotency_key, request_id)
 
@@ -597,19 +658,16 @@ class IntegrationTestBase(absltest.TestCase):
       include_fulfillment=select_fulfillment,
     )
 
-    request_headers = self.get_headers()
-    if headers:
-      request_headers.update(headers)
+    meta = self.get_mcp_meta()
 
-    response = self.client.post(
-      self.get_shopping_url("/checkout-sessions"),
-      json=create_payload.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-      ),
-      headers=request_headers,
-    )
-    self.assert_response_status(response, [200, 201])
-    checkout_data = response.json()
+    arguments = {
+        "_meta": meta,
+        "checkout": create_payload.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
+    }
+    # This maps to the 'create_checkout' UCP operation.
+    checkout_data = self.call_tool("create_checkout", arguments)
 
     if select_fulfillment:
       checkout_data = self.ensure_fulfillment_ready(checkout_data["id"])
@@ -626,11 +684,9 @@ class IntegrationTestBase(absltest.TestCase):
         The updated checkout data dictionary.
 
     """
-    response = self.client.get(
-      self.get_shopping_url(f"/checkout-sessions/{checkout_id}"),
-      headers=self.get_headers(),
-    )
-    checkout_data = response.json()
+    arguments = {"_meta": self.get_mcp_meta(), "id": checkout_id}
+    checkout_data = self.call_tool("get_checkout", arguments)
+
 
     # Helper to check if ready
     def is_ready(data):
@@ -752,13 +808,12 @@ class IntegrationTestBase(absltest.TestCase):
     if payment_payload is None:
       payment_payload = get_valid_payment_payload()
 
-    response = self.client.post(
-      self.get_shopping_url(f"/checkout-sessions/{checkout_id}/complete"),
-      json=payment_payload,
-      headers=self.get_headers(),
-    )
-    self.assert_response_status(response, 200)
-    return response.json()
+    arguments = {
+        "_meta": self.get_mcp_meta(),
+        "id": checkout_id,
+        **payment_payload,
+    }
+    return self.call_tool("complete_checkout", arguments)
 
   def create_completed_order(self) -> str:
     """Orchestrate checkout creation and completion.
@@ -849,16 +904,16 @@ class IntegrationTestBase(absltest.TestCase):
       platform=platform,
     )
 
-    request_headers = self.get_headers()
+    meta = self.get_mcp_meta()
     if headers:
-      request_headers.update(headers)
+      # Allow overriding meta fields from legacy header tests
+      meta["idempotency_key"] = headers.get("idempotency-key", meta["idempotency_key"])
 
-    response = self.client.put(
-      self.get_shopping_url(f"/checkout-sessions/{checkout_obj.id}"),
-      json=update_payload.model_dump(
-        mode="json", by_alias=True, exclude_none=True
-      ),
-      headers=request_headers,
-    )
-    self.assert_response_status(response, 200)
-    return response.json()
+    arguments = {
+        "_meta": meta,
+        "checkout": update_payload.model_dump(
+            mode="json", by_alias=True, exclude_none=True
+        ),
+    }
+    # This maps to the 'update_checkout' UCP operation.
+    return self.call_tool("update_checkout", arguments)

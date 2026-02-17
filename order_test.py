@@ -18,7 +18,7 @@ import datetime
 import uuid
 from absl import flags
 from absl.testing import absltest
-import integration_test_utils
+import integration_test_utils_rest
 from pydantic import AnyUrl
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
 from ucp_sdk.models.schemas.shopping import order
@@ -34,7 +34,7 @@ checkout.Checkout.model_rebuild(_types_namespace={"PaymentResponse": Payment})
 FLAGS = flags.FLAGS
 
 
-class OrderTest(integration_test_utils.IntegrationTestBase):
+class OrderTest(integration_test_utils_rest.IntegrationTestBase):
   """Tests for order management.
 
   Validated Paths:
@@ -81,7 +81,7 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
 
     # Update with Address to get options
     # Use helper to get a valid address from CSV
-    address_data = integration_test_utils.test_data.addresses[0]
+    address_data = integration_test_utils_rest.test_data.addresses[0]
     fulfillment_address = {
       "id": "dest_manual",
       "full_name": "Jane Doe",
@@ -113,7 +113,7 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
         }
         for li in checkout_obj.line_items
       ],
-      "payment": integration_test_utils.get_valid_payment_payload(),
+      "payment": integration_test_utils_rest.get_valid_payment_payload(),
       "fulfillment": fulfillment_payload,
     }
 
@@ -191,7 +191,7 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
 
     # Update with Address to get options
     # Use helper to get a valid address from CSV
-    address_data = integration_test_utils.test_data.addresses[0]
+    address_data = integration_test_utils_rest.test_data.addresses[0]
     addr = {
       "id": "dest_manual_2",
       "full_name": "Jane Doe",
@@ -223,7 +223,7 @@ class OrderTest(integration_test_utils.IntegrationTestBase):
         }
         for li in checkout_obj.line_items
       ],
-      "payment": integration_test_utils.get_valid_payment_payload(),
+      "payment": integration_test_utils_rest.get_valid_payment_payload(),
       "fulfillment": fulfillment_payload,
     }
 
