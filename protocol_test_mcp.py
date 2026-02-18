@@ -16,6 +16,7 @@
 
 from absl.testing import absltest
 import integration_test_utils_mcp
+import logging
 import httpx
 from ucp_sdk.models.discovery.profile_schema import UcpDiscoveryProfile
 from ucp_sdk.models.schemas.shopping import fulfillment_resp as checkout
@@ -242,7 +243,8 @@ class ProtocolMcpTest(integration_test_utils_mcp.IntegrationTestBase):
       )
     except RuntimeError as e:
       # This is the expected outcome. Check if the error is about the version.
-      self.assertIn("version", str(e).lower())
+      self.assertIn("version", str(e).lower()) 
+  
 
   def _verify_tool_contract(
     self, tool_map: dict, tool_name: str, required_inputs: list[str]
@@ -259,7 +261,6 @@ class ProtocolMcpTest(integration_test_utils_mcp.IntegrationTestBase):
       inputs_schema["required"], required_inputs, f"Incorrect required fields for {tool_name}"
     )
 
-  '''
   def test_tools_list(self):
     """Test the 'tools/list' MCP method.
 
@@ -267,18 +268,15 @@ class ProtocolMcpTest(integration_test_utils_mcp.IntegrationTestBase):
     Then the response should be a list of available tools,
     And it should include the expected shopping tools.
     """
-    meta = self.get_mcp_meta()
-    # 'tools/list' is a special tool that doesn't need arguments
-    # The method is 'tools/list', not a 'tools/call' with name='tools/list'
-    # but our helper is for tools/call. Let's adapt.
-    # A direct call is better here to test the specific method.
+    # The 'tools/list' method does not require any parameters. The 'params'
+    # field can be omitted entirely.
     payload = {
       "jsonrpc": "2.0",
-      "id": "tools-list-test",
+      "id": "1",
       "method": "tools/list",
-      "params": {"meta": meta},
     }
     response = self.client.post(self.shopping_service_endpoint, json=payload)
+    #logging.info("tools/list response: %s", response.json())
     self.assert_response_status(response, 200)
 
     result = response.json().get("result", {})
@@ -299,6 +297,7 @@ class ProtocolMcpTest(integration_test_utils_mcp.IntegrationTestBase):
       f"Missing tools: {expected_tool_names - tool_map.keys()}",
     )
 
+    '''
     # 2. Verify the schema (contract) for each tool
     self._verify_tool_contract(
       tool_map,
@@ -324,8 +323,8 @@ class ProtocolMcpTest(integration_test_utils_mcp.IntegrationTestBase):
       tool_map,
       "cancel_checkout",
       required_inputs=["id"],
-    ) 
-  '''
+    )
+    ''' 
 
 if __name__ == "__main__":
   absltest.main()
