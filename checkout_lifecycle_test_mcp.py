@@ -114,7 +114,7 @@ class CheckoutLifecycleTest(integration_test_utils_mcp.IntegrationTestBase):
         "_meta": self.get_mcp_meta(),
         "id": checkout_id,
         "checkout": update_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
+            mode="json", by_alias=True, exclude_none=True, exclude={"id"}
         ),
     }
     logging.info("update_checkout arguments: %s", arguments)

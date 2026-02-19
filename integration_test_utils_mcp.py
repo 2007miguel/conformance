@@ -914,7 +914,7 @@ class IntegrationTestBase(absltest.TestCase):
         "_meta": meta,
         "id": checkout_obj.id,
         "checkout": update_payload.model_dump(
-            mode="json", by_alias=True, exclude_none=True
+            mode="json", by_alias=True, exclude_none=True, exclude={"id"}
         ),
     }
     # This maps to the 'update_checkout' UCP operation.
