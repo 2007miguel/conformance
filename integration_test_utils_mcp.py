@@ -557,6 +557,7 @@ class IntegrationTestBase(absltest.TestCase):
         "method": "tools/call",
         "params": {"name": tool_name, "arguments": arguments},
     }
+    #logging.info("Calling tool '%s' with payload: %s", tool_name, payload)
     response = self.client.post(self.shopping_service_endpoint, json=payload)
     #self.assert_response_status(response, 200)
     response_data = response.json()
@@ -911,6 +912,7 @@ class IntegrationTestBase(absltest.TestCase):
 
     arguments = {
         "_meta": meta,
+        "id": checkout_obj.id,
         "checkout": update_payload.model_dump(
             mode="json", by_alias=True, exclude_none=True
         ),
